@@ -1,0 +1,1 @@
+.zukki-pager-track{scroll-snap-type:x mandatory;scrollbar-width:none;flex:1;min-height:0;display:flex;overflow-x:auto}.zukki-pager-track::-webkit-scrollbar{display:none}.zukki-pager-page{scroll-snap-align:center;flex-direction:column;flex:0 0 100%;min-width:0;display:flex}

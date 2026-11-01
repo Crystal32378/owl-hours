@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: zukki-community-vote-demo
+    runtime: static
+    buildCommand: "true"
+    staticPublishPath: ./site
+    autoDeployTrigger: "off"
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
