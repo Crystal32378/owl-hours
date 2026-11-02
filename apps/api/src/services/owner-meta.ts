@@ -2,14 +2,15 @@
 // (odd/tasks/owner-meta-publishing.md S2, S5). The owner asks for a Facebook
 // Login URL; Meta sends the browser back to the public callback with a code
 // and our signed state; the callback stores each Page token in Vault through
-// service_role and returns the owner to the owner web app.
+// service_role and returns the owner to the owner web app, or to the native
+// app's deep link when the app started the login (the state says which).
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { RepositoryError } from "../db/repository.ts";
 import type { OwnerSession } from "../http/auth.ts";
 import { HttpError } from "../http/respond.ts";
 import { createMetaGraph, MetaGraphError, type MetaDeps, type MetaPage } from "../meta/graph.ts";
-import { readOAuthState, signOAuthState, type OAuthOwner, type OAuthState } from "../meta/oauth-state.ts";
+import { readOAuthState, signOAuthState, type OAuthOwner, type OAuthReturn, type OAuthState } from "../meta/oauth-state.ts";
 import type { Unavailable } from "../v1-live.ts";
 import { unwrap } from "./db-result.ts";
 
@@ -32,13 +33,17 @@ export const META_PERMISSIONS = [
   "instagram_content_publish",
 ];
 
+// The owner app's Linked accounts screen behind its scheme (apps/owner/app.json "scheme"). The native
+// app waits for this URL in an auth session (expo-web-browser openAuthSessionAsync).
+export const OWNER_APP_RETURN_URL = "zukki-owner://content/accounts";
+
 // Why the callback sent the owner back without linking (the owner app reads it).
 export type LinkFailure = "invalid_state" | "denied" | "invalid_request" | "meta_error" | "no_pages" | "forbidden" | "failed";
 
-export async function metaConnectUrl(s: OwnerSession, deps: MetaLinkDeps): Promise<{ url: string }> {
+export async function metaConnectUrl(s: OwnerSession, deps: MetaLinkDeps, returnTo: OAuthReturn): Promise<{ url: string }> {
   const { config } = requireMeta(deps.meta);
   const tenantId = z.string().uuid().parse(unwrap(await s.db.rpc("caller_owned_business_id")));
-  const state = signOAuthState({ tenantId, userId: s.userId }, deps.serverKey, clock(deps));
+  const state = signOAuthState({ tenantId, userId: s.userId }, deps.serverKey, clock(deps), returnTo);
   // The login dialog: https://developers.facebook.com/docs/facebook-login/guides/advanced/manual-flow
   // A Facebook Login for Business configuration replaces the scopes:
   // https://developers.facebook.com/docs/facebook-login/facebook-login-for-business
@@ -56,11 +61,13 @@ export async function metaConnectUrl(s: OwnerSession, deps: MetaLinkDeps): Promi
 }
 
 // Where the callback sends the browser: the owner app's Linked accounts, with
-// meta=linked, or meta=error and the reason.
+// meta=linked, or meta=error and the reason. Only the signed state picks the
+// native app; a state that cannot be read returns to the web app.
 export async function finishMetaLink(deps: MetaLinkDeps, query: Record<string, string>): Promise<string> {
   const meta = requireMeta(deps.meta);
-  const failure = await linkFromCallback(meta, deps, query);
-  const url = new URL(meta.config.ownerReturnUrl);
+  const state = readOAuthState(query.state ?? "", deps.serverKey, clock(deps));
+  const failure = state ? await linkFromCallback(meta, deps, state, query) : "invalid_state";
+  const url = new URL(state?.returnTo === "app" ? OWNER_APP_RETURN_URL : meta.config.ownerReturnUrl);
   url.searchParams.set("meta", failure ? "error" : "linked");
   if (failure) url.searchParams.set("reason", failure);
   return url.href;
@@ -81,9 +88,9 @@ export function requireMeta(meta: MetaDeps | Unavailable | undefined): MetaDeps 
   return meta;
 }
 
-async function linkFromCallback(meta: MetaDeps, deps: MetaLinkDeps, query: Record<string, string>): Promise<LinkFailure | null> {
-  const state = readOAuthState(query.state ?? "", deps.serverKey, clock(deps));
-  if (!state) return "invalid_state";
+async function linkFromCallback(
+  meta: MetaDeps, deps: MetaLinkDeps, state: OAuthState, query: Record<string, string>,
+): Promise<LinkFailure | null> {
   const unusable = await consumeState(deps.serviceDb, state);
   if (unusable) return unusable;
   if (query.error) return "denied";

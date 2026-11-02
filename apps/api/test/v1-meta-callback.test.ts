@@ -56,6 +56,24 @@ describe("GET /v1/meta/callback", () => {
     assert.deepEqual(linkCalls(serviceCalls).map((call) => (call.body as { p_platform: string }).p_platform), ["facebook_page"]);
   });
 
+  it("returns the owner to the native app's deep link when the app started the login", async () => {
+    const { callback } = setup();
+    const appState = signOAuthState({ tenantId: NORTHSIDE, userId: MARIO }, SERVER_KEY, NOW, "app");
+
+    const location = redirectOf(await callback(`code=c&state=${appState}`));
+
+    assert.equal(location.href, "zukki-owner://content/accounts?meta=linked");
+  });
+
+  it("returns a failure to the native app's deep link too", async () => {
+    const { callback } = setup();
+    const appState = signOAuthState({ tenantId: NORTHSIDE, userId: MARIO }, SERVER_KEY, NOW, "app");
+
+    const location = redirectOf(await callback(`error=access_denied&state=${appState}`));
+
+    assert.equal(location.href, "zukki-owner://content/accounts?meta=error&reason=denied");
+  });
+
   for (const [label, state] of [
     ["a forged", signOAuthState({ tenantId: NORTHSIDE, userId: MARIO }, "another-key-0123456789-0123456789-01", NOW)],
     ["an expired", signOAuthState({ tenantId: NORTHSIDE, userId: MARIO }, SERVER_KEY, NOW - 11 * 60_000)],

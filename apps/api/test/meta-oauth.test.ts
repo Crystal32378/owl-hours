@@ -55,6 +55,11 @@ describe("OAuth state", () => {
     assert.deepEqual(readOAuthState(state, KEY, NOW + 60_000)?.owner, owner);
   });
 
+  it("says the owner web app is where the browser returns, unless the native app asked to get it back", () => {
+    assert.equal(readOAuthState(signOAuthState(owner, KEY, NOW), KEY, NOW)?.returnTo, "web");
+    assert.equal(readOAuthState(signOAuthState(owner, KEY, NOW, "app"), KEY, NOW)?.returnTo, "app");
+  });
+
   it("is different on every sign, so it cannot be predicted", () => {
     assert.notEqual(signOAuthState(owner, KEY, NOW), signOAuthState(owner, KEY, NOW));
   });
@@ -76,6 +81,15 @@ describe("OAuth state", () => {
     const [version, payload, signature] = signOAuthState(owner, KEY, NOW).split(".");
     const forged = JSON.parse(Buffer.from(payload!, "base64url").toString()) as Record<string, unknown>;
     forged.t = "10000000-0000-4000-8000-000000000002";
+    const tampered = [version, Buffer.from(JSON.stringify(forged)).toString("base64url"), signature].join(".");
+
+    assert.equal(readOAuthState(tampered, KEY, NOW), null);
+  });
+
+  it("rejects a state whose return target was swapped", () => {
+    const [version, payload, signature] = signOAuthState(owner, KEY, NOW).split(".");
+    const forged = JSON.parse(Buffer.from(payload!, "base64url").toString()) as Record<string, unknown>;
+    forged.r = "app";
     const tampered = [version, Buffer.from(JSON.stringify(forged)).toString("base64url"), signature].join(".");
 
     assert.equal(readOAuthState(tampered, KEY, NOW), null);

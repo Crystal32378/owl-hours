@@ -24,6 +24,8 @@ const declineBody = z
   // The app's decline button sends no reason; the sheet sends one.
   .object({ reason: z.enum(["busy", "too_far", "not_offered", "other"]).default("other"), note: z.string().trim().max(500).optional() })
   .strict();
+// The native app asks for its own deep link back; anything else returns to the owner web app.
+const connectUrlQuery = z.object({ return: z.enum(["web", "app"]).default("web") });
 const messagesQuery = z.object({ before: isoTime.optional(), limit: z.coerce.number().int().min(1).max(200).optional() });
 const quoteBody = z
   .object({
@@ -261,7 +263,10 @@ export function ownerRoutes(deps: V1Deps): Hono<OwnerEnv> {
 
   app.get("/linked-accounts", async (c) => ok(c, await owner.listLinkedAccounts(c.get("session"))));
   app.delete("/linked-accounts/:id", async (c) => ok(c, await unlinkAccount(c.get("session"), readId(c))));
-  app.get("/meta/connect-url", async (c) => ok(c, await metaConnectUrl(c.get("session"), deps)));
+  app.get("/meta/connect-url", async (c) => {
+    const query = readQuery(c, connectUrlQuery);
+    return ok(c, await metaConnectUrl(c.get("session"), deps, query.return));
+  });
 
   app.post("/test-zukki", async (c) => {
     const body = await readJson(c, testZukkiBody);

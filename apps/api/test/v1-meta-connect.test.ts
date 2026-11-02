@@ -40,6 +40,25 @@ describe("GET /v1/owner/meta/connect-url", () => {
     assert.equal(readOAuthState(url.searchParams.get("state") ?? "", SERVER_KEY, NOW)?.owner.tenantId, NORTHSIDE);
   });
 
+  it("signs the native app as the return target when it asks with return=app, and the web app otherwise", async () => {
+    const { ownerCall } = setup();
+
+    const app = await connectUrl(await ownerCall("/meta/connect-url?return=app"));
+    const web = await connectUrl(await ownerCall("/meta/connect-url"));
+
+    assert.equal(readOAuthState(app.searchParams.get("state") ?? "", SERVER_KEY, NOW)?.returnTo, "app");
+    assert.equal(readOAuthState(web.searchParams.get("state") ?? "", SERVER_KEY, NOW)?.returnTo, "web");
+  });
+
+  it("refuses any other return target, so a client cannot choose where the callback redirects", async () => {
+    const { ownerCall } = setup();
+
+    const response = await ownerCall(`/meta/connect-url?return=${encodeURIComponent("https://evil.example")}`);
+
+    assert.equal(response.status, 400);
+    assert.equal(((await response.json()) as { error: { code: string } }).error.code, "invalid_query");
+  });
+
   it("refuses staff, who cannot link accounts for the business", async () => {
     const { ownerCall } = setup({ owner: () => pgError("42501", "only the business owner can change it", 403) });
 
