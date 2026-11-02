@@ -19,7 +19,7 @@ import FeeEditor from '../../business/components/FeeEditor';
 import { completeFees, editableFees, fixedFees } from '../../business/lib/feeDraft';
 import { onboardingCopys } from '../copys/onboardingCopys';
 import { completePrices } from '../lib/priceDraft';
-import { priceAmountText } from '../lib/priceText';
+import { priceAmountText, pricesLead } from '../lib/priceText';
 import OnboardingFrame from './OnboardingFrame';
 import SetupStepHeader from './SetupStepHeader';
 import ZukkiSays from './ZukkiSays';
@@ -49,7 +49,7 @@ export default function PricesScreen(props: {
     >
       <SetupStepHeader step={2} />
       <Heading level={1}>{onboardingCopys.pricesTitle}</Heading>
-      <ZukkiSays owl="running" text={onboardingCopys.pricesLead} tone="card" />
+      <ZukkiSays owl="running" text={pricesLead(props.prices)} tone="card" />
       <Card padding={2}>
         {draft.map((price) =>
           editingId === price.id ? (

@@ -12,6 +12,7 @@ import {
   locationMessage,
   offersLocationAction,
 } from '../../features/onboarding/lib/areaLocation';
+import { mapCenter } from '../../features/onboarding/lib/areaMap';
 import { resolveNext } from '../../features/onboarding/lib/setupSteps';
 import LoadingSkeleton from '../../shared/shell/LoadingSkeleton';
 
@@ -31,10 +32,12 @@ export default function AreaRoute() {
       radiusKm={view.radiusKm}
       nightUrgent={view.nightUrgent}
       hoursSummary={view.hoursSummary}
+      mapCenter={mapCenter(view.location.status, view.center)}
       offersLocation={offersLocationAction(view.location.status)}
       locationMessage={locationMessage(view.location)}
       isFinishDisabled={view.isLocating || !canFinishArea(view.location.status)}
       onUseLocation={view.saveDeviceLocation}
+      onMoveLocation={view.moveLocation}
       insets={safeInsets}
       onFinish={async (radiusKm, nightUrgent) => {
         await view.finish(radiusKm, nightUrgent);

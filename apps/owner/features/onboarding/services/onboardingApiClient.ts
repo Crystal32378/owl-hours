@@ -8,6 +8,7 @@ import type { Business } from "../../../shared/data/types.ts";
 import { OwnerApiError } from "../../../shared/infra/ownerApi.ts";
 import type { OwnerEditApi } from "../../../shared/infra/ownerApi.ts";
 import { createBusinessApiClient, readHasLocation } from "../../business/services/businessApiClient.ts";
+import { PLACEHOLDER_POINT } from "../lib/areaLocation.ts";
 import type { GeoPoint, LocationStatus } from "../lib/areaLocation.ts";
 import { DEFAULT_RADIUS_KM } from "../lib/areaRadius.ts";
 import type { OnboardingClient, OnboardingProfile } from "./onboardingService.ts";
@@ -62,6 +63,7 @@ export function createApiOnboardingClient(api: OwnerEditApi, drafts: OnboardingC
     findArea: async () => toStepArea(await findBusiness()),
     saveArea,
     findLocationStatus,
+    findCenter: async () => (await findBusiness())?.area.center ?? { ...PLACEHOLDER_POINT },
     saveLocation,
     findFees: async () => (await findBusiness())?.fees ?? [],
     saveFees: async (fees) => {

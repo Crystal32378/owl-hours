@@ -8,6 +8,9 @@ export type LocationNotice = "denied" | "unavailable" | null;
 export type LocationState = { status: LocationStatus; notice: LocationNotice };
 
 export type GeoPoint = { lat: number; lng: number };
+
+// The point a new live business is created at; it is never a real location.
+export const PLACEHOLDER_POINT: Readonly<GeoPoint> = { lat: 0, lng: 0 };
 export type DeviceFix = { kind: "found"; point: GeoPoint } | { kind: "denied" } | { kind: "unavailable" };
 
 // The two expo-location calls the step needs, injected by the native route.
