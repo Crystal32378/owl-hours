@@ -70,6 +70,33 @@ describe("triageMedia", () => {
     assert.match(prompts[0] ?? "", /wont_help when .* not about water/);
   });
 
+  it("keeps the rest of the reading when the customer message is blank", async () => {
+    for (const blank of ["", "   "]) {
+      const triage = await triageMedia(answering({ ...OVERFLOW, customerMessage: blank }), {
+        mediaType: "image",
+        mediaUrl: "u",
+        caption: null,
+      });
+
+      assert.equal(triage.customerMessage, null);
+      assert.equal(triage.waterShutOff, "helps");
+    }
+  });
+
+  it("tells Spark that Zukki takes no orders", async () => {
+    const prompts: string[] = [];
+
+    await triageMedia(
+      async (input) => {
+        prompts.push(input.prompt);
+        return JSON.stringify(OVERFLOW);
+      },
+      { mediaType: "image", mediaUrl: "u", caption: null },
+    );
+
+    assert.match(prompts[0] ?? "", /You take no orders or bookings/);
+  });
+
   it("treats a valve name made only of spaces as no valve", async () => {
     const triage = await triageMedia(answering({ ...OVERFLOW, valveObject: "  " }), {
       mediaType: "image",

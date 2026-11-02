@@ -231,7 +231,7 @@ describe("respond: urgent leak", () => {
     assert.match(queued[2]?.message.body ?? "", /turn this valve clockwise/);
   });
 
-  it("offers the marked valve for later when closing it will not stop this leak", async () => {
+  it("shows the marked valve for later without promising it stops this, and still asks for the location", async () => {
     const { deps, queued } = setup({
       understanding: { category: "plumbing", urgent: false },
       reading: { analysis: "Your drain is leaking.", markedFrameUrl: "https://x.test/marked.jpg", shutOffWontHelp: true },
@@ -239,9 +239,44 @@ describe("respond: urgent leak", () => {
 
     await respond(deps, ctx(), { kind: "media", mediaId: MEDIA, mediaType: "video", caption: null });
 
-    assert.equal(queued[2]?.message.payload?.header_image_url, "https://x.test/marked.jpg");
-    assert.match(queued[2]?.message.body ?? "", /If it gets worse/);
-    assert.doesNotMatch(queued[2]?.message.body ?? "", /Let's stop the water first/);
+    const card = queued[2];
+    assert.equal(card?.message.payload?.header_image_url, "https://x.test/marked.jpg");
+    assert.match(card?.message.body ?? "", /If water gets out of hand/);
+    assert.doesNotMatch(card?.message.body ?? "", /to stop the water|Let's stop the water/);
+    // The store reads this as a finished safety step, so nothing waits on a button.
+    assert.equal(card?.message.payload?.variant, "safety_text");
+    assert.equal(queued[3]?.message.kind, "location_request");
+  });
+
+  it("does not ask for the location again when the Got it button comes after it was asked", async () => {
+    const { deps, queued } = setup({ facts: { category: "plumbing", urgency: "today", safety: "answered", locationAsked: true } });
+
+    await respond(deps, ctx(), button("safety_done", "Got it"));
+
+    assert.deepEqual(queued, []);
+  });
+
+  it("keeps the reading when it cannot tell the category, then shows the list", async () => {
+    const { deps, queued } = setup({
+      understanding: new Error("Spark is down"),
+      reading: { analysis: "Please leave the kitchen now, I can see a cracked gas hose." },
+    });
+
+    await respond(deps, ctx(), { kind: "media", mediaId: MEDIA, mediaType: "image", caption: null });
+
+    assert.equal(queued[1]?.message.body, "Please leave the kitchen now, I can see a cracked gas hose.");
+    assert.equal(queued[2]?.message.payload?.variant, "category_list");
+  });
+
+  it("sends no reading for an off-topic message", async () => {
+    const { deps, queued } = setup({
+      understanding: { onTopic: false },
+      reading: { analysis: "I can see a sunset." },
+    });
+
+    await respond(deps, ctx(), { kind: "media", mediaId: MEDIA, mediaType: "image", caption: null });
+
+    assert.equal(queued.some((entry) => entry.message.body === "I can see a sunset."), false);
   });
 
   it("treats the need as urgent when Spark saw something serious", async () => {

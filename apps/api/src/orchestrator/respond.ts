@@ -75,6 +75,7 @@ async function onButton(deps: RespondDeps, ctx: TurnContext, id: string, queue: 
   const facts = await deps.store.facts(ctx.conversationId);
   if (id === "safety_done" || id === "safety_cant_find") {
     if (id === "safety_cant_find") await queue(copy.cantFindValve());
+    if (facts.locationAsked) return;
     await queue(copy.locationRequest(facts.category ?? "plumbing", { waterOff: id === "safety_done" }));
     return;
   }
@@ -161,6 +162,8 @@ async function onMessage(deps: RespondDeps, ctx: TurnContext, turn: Extract<Turn
   }
 
   const understanding = await understandOrFallback(deps, history, parts, facts);
+  // Sent before the checks below, so a reading rated urgent survives an unknown category.
+  if (analysis && understanding?.onTopic !== false) await queue(copy.mediaAnalysis(analysis));
   if (!understanding) {
     await queue(copy.categoryList());
     return;
@@ -191,15 +194,12 @@ async function onMessage(deps: RespondDeps, ctx: TurnContext, turn: Extract<Turn
     });
   }
 
-  if (analysis) await queue(copy.mediaAnalysis(analysis));
-
   const markedValve = category === "plumbing" && markedFrameUrl !== null;
   if (facts.state === "with_zukki" && facts.safety === "none" && (urgent || markedValve)) {
     if (markedValve) {
       await queue(copy.waterSafety({ markedFrameUrl, advice: valveAdvice, ifItGetsWorse: shutOffWontHelp }));
-      return;
-    }
-    if (category === "plumbing" && shutOffWontHelp) {
+      if (!shutOffWontHelp) return;
+    } else if (category === "plumbing" && shutOffWontHelp) {
       await queue(copy.shutOffWontHelp());
     } else if (category === "plumbing") {
       await queue(copy.waterSafety({ markedFrameUrl, advice: valveAdvice }));

@@ -10,7 +10,8 @@ const SHUT_OFF_ANSWERS = ["helps", "wont_help", "unclear"] as const;
 
 const triageSchema = z.object({
   problem: z.string().min(1),
-  customerMessage: z.string().min(1),
+  // A blank message costs the customer that text, not the rest of the reading.
+  customerMessage: z.string().transform((message) => message.trim() || null),
   severity: z.enum(SEVERITIES),
   waterShutOff: z.enum(SHUT_OFF_ANSWERS),
   valveObject: z.string().nullable(),
@@ -38,7 +39,7 @@ const TRIAGE_JSON_SCHEMA = {
 const TRIAGE_PROMPT = [
   `A customer sent this to an assistant that connects them with local businesses for ${CATEGORIES.join(", ")}. Describe only what is visible or audible; do not assume a cause you cannot see.`,
   "problem: one short sentence on what is wrong or what they need.",
-  "customerMessage: for the customer, in the language they wrote in (English if they wrote nothing), one or two short plain sentences: what you see and what they can safely do right now. Say the safe thing first when there is danger: stay away from exposed wires and from water near them, leave and call for help if they smell gas, do not drive a car that is leaking or unsafe. Never diagnose a pet or a person: suggest they see the professional. No prices, no business names, and no promise that help is on the way.",
+  "customerMessage: for the customer, in the language they wrote in (English if they wrote nothing), one or two short plain sentences: what you see and what they can safely do right now. Say the safe thing first when there is danger: stay away from exposed wires and from water near them, leave and call for help if they smell gas, do not drive a car that is leaking or unsafe. Never diagnose a pet or a person: suggest they see the professional. You take no orders or bookings yourself. No prices, no business names, and no promise that help is on the way.",
   "severity: emergency when danger or damage is spreading now, urgent when it needs help today, routine when it can wait, none when nothing is wrong.",
   "waterShutOff: helps when closing a water supply valve would stop this problem. wont_help when it clearly would not, such as rain, a roof or gutter, an old stain, nothing wrong, or anything not about water. unclear in every other case, and whenever you doubt. If the customer says water is leaking or flowing from a pipe, faucet, toilet or fixture, never answer wont_help because you cannot see it: answer helps, or unclear if their words leave it open.",
   "valveObject: only for a water problem, the shortest plain noun for a water shut-off valve you can clearly see, such as valve. Null otherwise.",

@@ -80,7 +80,8 @@ export function waterSafety(input: { markedFrameUrl: string | null; advice: stri
     kind: "interactive",
     body: card.body,
     payload: {
-      variant: "safety",
+      // Shown for later, it asks nothing: the store reads safety_text as a finished step.
+      variant: input.ifItGetsWorse ? "safety_text" : "safety",
       buttons: card.buttons,
       ...(card.headerImageUrl ? { header_image_url: card.headerImageUrl } : {}),
     },
