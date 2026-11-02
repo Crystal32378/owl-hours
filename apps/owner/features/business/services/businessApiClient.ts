@@ -2,6 +2,7 @@ import type { OwnerEditApi } from "../../../shared/infra/ownerApi.ts";
 import type { Business, ExtraFee, FeeInput, ID, LinkedAccount, PriceItem } from "../../../shared/data/types.ts";
 import { hoursSummary } from "../lib/hoursSummary.ts";
 import type { OpeningHours } from "../lib/hoursSummary.ts";
+import type { BusinessRowExtras } from "../lib/businessRows.ts";
 import type { BusinessClient } from "./businessService.ts";
 
 // The business as GET /v1/owner/business returns it (supabase owner_business).
@@ -54,8 +55,7 @@ export function createBusinessApiClient(api: OwnerEditApi): BusinessClient {
     loadSettings: async () => ({ takingRequests: (await readBusiness()).takingRequests }),
     storeSettings: async (settings) => ({ takingRequests: await patchTakingRequests(settings.takingRequests) }),
     loadAccounts: async () => (await readBusiness()).linkedAccounts.map(toLinkedAccount),
-    // The service area has no name of its own; it is drawn around the business.
-    loadRowExtras: async () => ({ areaLabel: (await readBusiness()).shortName, importedServices: null }),
+    loadRowExtras: async () => toRowExtras(await readBusiness()),
   };
 }
 
@@ -81,6 +81,11 @@ function toBusiness(row: ApiBusiness): Business {
   };
   if (row.website) business.website = row.website;
   return business;
+}
+
+// The service area has no name of its own; it is drawn around the business.
+function toRowExtras(row: ApiBusiness): BusinessRowExtras {
+  return { areaLabel: row.shortName, importedServices: null, hasLocation: row.hasLocation };
 }
 
 // A business without a service area reads a zero radius rather than a made-up one.

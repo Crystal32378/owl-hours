@@ -32,6 +32,7 @@ const northside = {
   hours: [1, 2, 3, 4, 5, 6].map((weekday) => ({ weekday, opens: "08:00", closes: "18:00" })),
   nightJobs: true,
   area: { lat: 21.1727, lng: -86.8515, radiusKm: 8 },
+  hasLocation: true,
   takingRequests: true,
   acceptWindowMin: { urgent: 5, other: 30 },
   linkedAccounts: [{ kind: "facebook_page", name: "Northside Plumbing (test Page)" }],
@@ -78,7 +79,15 @@ describe("live businessService.getBusiness", () => {
   });
 
   it("labels the service area with the short name and imports no service count", async () => {
-    assert.deepEqual(await liveService().service.getRowExtras(), { areaLabel: "Northside", importedServices: null });
+    assert.deepEqual(await liveService().service.getRowExtras(), { areaLabel: "Northside", importedServices: null, hasLocation: true });
+  });
+
+  // Spec: odd/tasks/owner-area-map-fees-dark.md S1: the Business tab map shows the
+  // overview while the business still sits at the (0, 0) placeholder.
+  it("S1 reads that a new business has no real location yet", async () => {
+    const { service } = liveService(() => ok({ ...northside, area: null, hasLocation: false }));
+
+    assert.equal((await service.getRowExtras()).hasLocation, false);
   });
 
   it("rejects when the API fails, so the screen draws its error state", async () => {

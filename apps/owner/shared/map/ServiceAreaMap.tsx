@@ -1,19 +1,24 @@
 import 'maplibre-gl/dist/maplibre-gl.css';
+import './serviceAreaMap.css';
 
 import { useEffect, useRef, useState, type RefObject } from 'react';
 import { Map as MapLibreMap, Marker, type GeoJSONSource } from 'maplibre-gl';
-import type { GeoPoint } from '../lib/areaLocation';
-import { circleBounds, mapStyleUrl, OVERVIEW_CAMERA, radiusCircle, toGeoPoint } from '../lib/areaMap';
+import type { GeoPoint } from '../data/types';
+import { circleBounds, mapStyleUrl, OVERVIEW_CAMERA, radiusCircle, toGeoPoint } from './areaMap';
+import { ATTRIBUTION_VISIBLE_MS, collapseAttribution } from './attribution';
 
 // The service-area map (MapLibre GL JS, https://maplibre.org/maplibre-gl-js/docs/API/classes/Map/)
-// rendered inside the area step's DOM screen. It only draws: the business point and
-// radius come in as props, and a dropped pin goes back out through onMove.
-// With no center it shows the world overview, with no pin and no circle.
-export default function AreaMap(props: {
+// rendered inside a DOM screen: the area step and the Business tab. It only draws: the
+// business point and radius come in as props, and a dropped pin goes back out through
+// onMove. Without onMove it is read-only: no pan, zoom or pin drag, so it never catches
+// the scroll of the screen around it. With no center it shows the world overview, with
+// no pin and no circle. className sizes it for the screen.
+export default function ServiceAreaMap(props: {
   center: GeoPoint | null;
   radiusKm: number;
   label: string;
-  onMove: (point: GeoPoint) => void;
+  className: string;
+  onMove?: (point: GeoPoint) => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const area = useMapLibre(containerRef, mapStyleUrl(usePrefersDark()), props.onMove);
@@ -26,7 +31,7 @@ export default function AreaMap(props: {
     shownOn.current = area;
   }, [area, props.center?.lat, props.center?.lng, props.radiusKm]);
 
-  return <div ref={containerRef} className="onk-map" role="region" aria-label={props.label} />;
+  return <div ref={containerRef} className={`zukki-area-map ${props.className}`} role="region" aria-label={props.label} />;
 }
 
 type AreaMapHandle = { map: MapLibreMap; pin: Marker };
@@ -42,27 +47,36 @@ const DARK_QUERY = '(prefers-color-scheme: dark)';
 function useMapLibre(
   containerRef: RefObject<HTMLDivElement | null>,
   styleUrl: string,
-  onMove: (point: GeoPoint) => void,
+  onMove: ((point: GeoPoint) => void) | undefined,
 ): AreaMapHandle | null {
   const [handle, setHandle] = useState<AreaMapHandle | null>(null);
   const onMoveRef = useRef(onMove);
   onMoveRef.current = onMove;
+  const isEditable = onMove !== undefined;
 
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
     const accent = getComputedStyle(container).getPropertyValue('--color-accent').trim();
-    const map = new MapLibreMap({ container, style: styleUrl, ...OVERVIEW_CAMERA, attributionControl: { compact: false } });
-    const pin = createPin(accent, (point) => onMoveRef.current(point));
+    const map = new MapLibreMap({
+      container,
+      style: styleUrl,
+      ...OVERVIEW_CAMERA,
+      interactive: isEditable,
+      attributionControl: { compact: true },
+    });
+    const pin = createPin(accent, isEditable ? (point) => onMoveRef.current?.(point) : null);
     map.on('load', () => {
       addAreaLayers(map, accent);
       setHandle({ map, pin });
     });
+    const collapseTimer = setTimeout(() => collapseAttribution(container), ATTRIBUTION_VISIBLE_MS);
     return () => {
+      clearTimeout(collapseTimer);
       setHandle(null);
       map.remove();
     };
-  }, [containerRef, styleUrl]);
+  }, [containerRef, styleUrl, isEditable]);
 
   return handle;
 }
@@ -80,9 +94,10 @@ function showArea({ map, pin }: AreaMapHandle, center: GeoPoint | null, radiusKm
   map.fitBounds(circleBounds(center, radiusKm), { padding: FIT_PADDING, animate });
 }
 
-function createPin(accent: string, onMove: (point: GeoPoint) => void): Marker {
-  const pin = new Marker({ color: accent, draggable: true });
-  pin.on('dragend', () => onMove(toGeoPoint(pin.getLngLat())));
+// A pin without onDrop stays where the business is.
+function createPin(accent: string, onDrop: ((point: GeoPoint) => void) | null): Marker {
+  const pin = new Marker({ color: accent, draggable: onDrop !== null });
+  if (onDrop) pin.on('dragend', () => onDrop(toGeoPoint(pin.getLngLat())));
   return pin;
 }
 

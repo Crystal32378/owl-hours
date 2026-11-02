@@ -33,5 +33,6 @@
   },
   "updates": {
     "url": "https://u.expo.dev/751b79b6-63f8-4e74-a817-b2887933a68a"
-  }
+  },
+  "userInterfaceStyle": "automatic"
 }

@@ -14,7 +14,8 @@ export type ExtraFee = { id: ID; label: string; amount: Money | "at_cost"; windo
 // An extra fee as the prices screens edit it and PUT /business/fees saves it.
 export type FeeInput = { id: ID; label: string; amount: Money; atNight: boolean };
 export type Hours = { summary: string; nightUrgent: boolean };                      // "Mon–Sat, 8 AM–8 PM"
-export type ServiceArea = { center: { lat: number; lng: number }; radiusKm: number };
+export type GeoPoint = { lat: number; lng: number };
+export type ServiceArea = { center: GeoPoint; radiusKm: number };
 
 export type Business = {
   id: ID;

@@ -1,4 +1,4 @@
-import type { Business, ExtraFee, PriceItem } from "../../../shared/data/types.ts";
+import type { Business, ExtraFee, GeoPoint, PriceItem } from "../../../shared/data/types.ts";
 import { businessCopys } from "../copys/businessCopys.ts";
 import { priceAmountText } from "./priceFields.ts";
 
@@ -6,9 +6,14 @@ import { priceAmountText } from "./priceFields.ts";
 // shared/data/mock.ts, so the fake client seeds them here (operator decision,
 // odd/tasks/owner-business.md L2). Live has no imported-services count yet
 // (no column), so it passes null and the website row shows the site alone.
-export type BusinessRowExtras = { areaLabel: string; importedServices: number | null };
+// hasLocation is false while the business sits at the (0, 0) placeholder a new
+// business starts at, as the demo business does.
+export type BusinessRowExtras = { areaLabel: string; importedServices: number | null; hasLocation: boolean };
 
-export const BUSINESS_DEMO: BusinessRowExtras = { areaLabel: "Northside", importedServices: 12 };
+export const BUSINESS_DEMO: BusinessRowExtras = { areaLabel: "Northside", importedServices: 12, hasLocation: false };
+
+// What the service-area map draws: a null center shows the world overview.
+export type ServiceAreaMapView = { center: GeoPoint | null; radiusKm: number };
 
 // Every value the OwBusiness rows show, derived from the business.
 // Copy: handoff-ui/owner-app/design/html/OwBusiness.dc.html; the hours suffix
@@ -22,6 +27,7 @@ export type BusinessRowValues = {
   extraFees: string;
   hours: string;
   serviceArea: string;
+  serviceAreaMap: ServiceAreaMapView;
   website: string;
 };
 
@@ -32,6 +38,7 @@ export function businessRows(business: Business, extras: BusinessRowExtras = BUS
     extraFees: business.fees.map(feeText).join(" · "),
     hours: hoursText(business),
     serviceArea: `${business.area.radiusKm} ${businessCopys.areaAround} ${extras.areaLabel}`,
+    serviceAreaMap: { center: extras.hasLocation ? business.area.center : null, radiusKm: business.area.radiusKm },
     website: websiteText(business, extras.importedServices),
   };
 }
