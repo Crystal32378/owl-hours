@@ -1,40 +1,17 @@
-/* Service-area map card: the static map with the radius circle and the shop dot, all on tokens. */
+/* Service-area map card: the MapLibre canvas, clipped to the card's rounded corners. */
 .onk-map {
   position: relative;
-  height: 170px;
+  height: 200px;
   border-radius: var(--radius-container);
   overflow: hidden;
 }
 
-.onk-map-img {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
+/* MapLibre's attribution bar is white-on-light by default; on tokens it reads in both modes. */
+.onk-map .maplibregl-ctrl.maplibregl-ctrl-attrib {
+  background: color-mix(in srgb, var(--color-background-card) 85%, transparent);
+  color: var(--color-text-secondary);
 }
 
-.onk-map-circle {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  width: 134px;
-  height: 134px;
-  transform: translate(-50%, -50%);
-  border-radius: 50%;
-  border: 2px solid var(--color-accent);
-  background: var(--color-accent-muted);
-  opacity: 0.55;
-}
-
-.onk-map-dot {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  width: 16px;
-  height: 16px;
-  transform: translate(-50%, -50%);
-  border-radius: 50%;
-  background: var(--color-accent);
-  border: 3px solid var(--color-on-accent);
+.onk-map .maplibregl-ctrl-attrib a {
+  color: var(--color-text-primary);
 }

@@ -64,6 +64,7 @@ export const onboardingCopys = {
   nightRequestsWindow: "10 PM–7 AM, with your night fee",
   finishButton: "Finish",
   mapAlt: "Map of the service area",
+  mapDragHint: "Drag the pin to move your business.",
   useLocation: "Use my current location",
   locationNeeded: "Add your location so customers nearby can find you.",
   locationSaved: "Location saved.",
