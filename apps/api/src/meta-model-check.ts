@@ -18,7 +18,7 @@ export async function logMetaModelAccess(
   const key = env.META_MODEL_API_KEY;
   if (!key) return;
   if (env.META_MODEL_BASE_URL) {
-    log.warn(`Meta models: not calling Meta, answers come from ${env.META_MODEL_BASE_URL}`);
+    log.warn("Meta models: not calling Meta, META_MODEL_BASE_URL is set");
     return;
   }
   const pasted = /\s/.test(key) ? ", has spaces or line breaks" : "";

@@ -20,7 +20,7 @@ Objective: anyone can run the customer flow from a clean clone, and our e2e flow
 
 - T1 (S3, inline) Loopback overrides for the Graph host and the model base URL. Status: done, 9e355e7.
 - T2 (S3, S4, S5, inline) Fake WhatsApp server and media e2e. Status: done, 9e355e7.
-- T3 (S2, S6, S7, inline) Recorded models, judge command and USAGE. Status: done, c105529 and 9935ccb-series fix.
+- T3 (S2, S6, S7, inline) Recorded models, judge command and USAGE. Status: done, c105529 and 77c3bff.
 - T4 (S8, inline) Hidden requests keep a card without customer data. Status: done, db5068b. Risk: item 2.
 
 Route: inline; no writer trigger (one behavior chain, each step depends on the last).
@@ -34,4 +34,5 @@ Route: inline; no writer trigger (one behavior chain, each step depends on the l
 - L5 (2026-11-02): from a clean clone with no key: run reached customer_approved in the browser (request card shows the marked photo, one job link in chat, quote sent, customer approved over the webhook). Found and fixed on the way: development overlay covered Send code; `--no-dev` lost the styles; `expo serve` answered Not Found on reload; GET /offers 500 after any expired or declined request; empty Video tile hid the marked photo; job link under every Zukki message; "she" in owner copy.
 - L6 (2026-11-02): left for the user: per MESSAGES.md the customer gets no message after approving a visit; seed handoff 02 has no customer location, so its expired notice fails every 5 s in the local log.
 - L7 (2026-11-02): a second customer in one judge run failed with EADDRNOTAVAIL. Measured about 600 connections a second to :8081 from Expo Go on the simulator, left open by the earlier e2e; closing it gave 3 of 3 customers connected and marked with no missing recording. Replay answers now cycle per key, which a run with several customers needs. The earlier explanation (only the replay's clamped index) was incomplete.
+- L8 (2026-11-02): independent verifier: S3 guard, S7 and S8 pass. Blockers fixed: unknown media got a recorded valve circle (replay now answers frames only right after the triage knew the media); media-flow defaulted to untracked files and EXPECT_NO_READING passed on missing media (now committed samples and a check that the fake serves them). Advisories fixed: shell exports could override the judge run's env; URLs with credentials or other schemes passed; two local servers crashed on bad paths; run-live scripts could reach real WhatsApp (env.sh now refuses). Hidden cards keep the distance, which the owner's handoff row already holds; decision for the user only if it matters.
 

@@ -13,11 +13,19 @@ const TYPES = {
   '.ttf': 'font/ttf', '.woff2': 'font/woff2',
 };
 
-createServer(async (request, response) => {
-  const file = await fileFor(new URL(request.url, 'http://local').pathname);
-  response.writeHead(200, { 'content-type': TYPES[extname(file)] ?? 'application/octet-stream' });
-  response.end(await readFile(file));
+createServer((request, response) => {
+  send(request, response).catch(() => {
+    response.writeHead(400);
+    response.end();
+  });
 }).listen(Number(port), '127.0.0.1', () => console.log(`Owner app on http://localhost:${port}`));
+
+async function send(request, response) {
+  const file = await fileFor(new URL(request.url, 'http://local').pathname);
+  const bytes = await readFile(file);
+  response.writeHead(200, { 'content-type': TYPES[extname(file)] ?? 'application/octet-stream' });
+  response.end(bytes);
+}
 
 async function fileFor(pathname) {
   const candidate = join(folder, normalize(decodeURIComponent(pathname)));

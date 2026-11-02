@@ -27,6 +27,9 @@ begin
   assert card -> 'zukkiSummary' = 'null'::jsonb, 'summary leaked';
   assert card -> 'customerName' = 'null'::jsonb, 'customer name leaked';
   assert card -> 'media' = '[]'::jsonb, 'media leaked';
+  assert card -> 'customerQuote' = 'null'::jsonb, 'customer quote leaked';
+  assert card ->> 'approxLocation' is null or card ->> 'approxLocation' like '% km away',
+    'customer area leaked: ' || (card ->> 'approxLocation');
   assert single ->> 'status' = 'expired', 'the single card was ' || coalesce(single::text, 'null');
 end $$;
 reset role;

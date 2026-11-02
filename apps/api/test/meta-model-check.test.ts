@@ -25,10 +25,11 @@ describe("logMetaModelAccess", () => {
   it("says the models are replayed, and sends the key nowhere, when a local model URL is set", async () => {
     const { lines, requests, run } = setup(listing(ALL));
 
-    await run({ ...env, META_MODEL_BASE_URL: "http://127.0.0.1:4011/v1" });
+    await run({ ...env, META_MODEL_BASE_URL: "http://user:SECRET@127.0.0.1:4011/v1" });
 
     assert.deepEqual(requests, []);
-    assert.match(lines.join("\n"), /not calling Meta.*http:\/\/127\.0\.0\.1:4011\/v1/);
+    assert.match(lines.join("\n"), /not calling Meta/);
+    assert.doesNotMatch(lines.join("\n"), /SECRET/);
   });
 
   it("asks Meta which models this key sees and logs them", async () => {

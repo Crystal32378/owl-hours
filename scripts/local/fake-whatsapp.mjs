@@ -86,8 +86,9 @@ async function mediaInfo(mediaId) {
 
 async function sendMediaFile(response, mediaId) {
   const name = basename(decodeURIComponent(mediaId));
+  const bytes = await readFile(join(MEDIA_DIR, name));
   response.writeHead(200, { 'content-type': mimeTypeOf(name) });
-  response.end(await readFile(join(MEDIA_DIR, name)));
+  response.end(bytes);
 }
 
 function mimeTypeOf(name) {

@@ -51,7 +51,7 @@ META_MODEL_API_KEY=your-key bash scripts/local/judge.sh
 
 The sample video is made from a generated picture (`muse-image-1.0`), not a real home.
 
-To check the replies come from the models, with a key: `node scripts/e2e/media-flow.mjs` needs `META_APP_SECRET`, `WHATSAPP_PHONE_NUMBER_ID` and the stand-ins running, sends two different media, and fails if they get the same reading.
+To check the replies come from the models, with a key and the stand-ins running: `node scripts/e2e/media-flow.mjs` (it needs `META_APP_SECRET` and `WHATSAPP_PHONE_NUMBER_ID`, the same values the API uses). It sends two different media and fails if they get the same reading.
 
 ---
 
@@ -192,6 +192,8 @@ The local seed has no finished job with photos yet. Run `scripts/local/seed-cont
 ---
 
 ## 7. Automated Live Flow and Verification Checks
+
+These scripts refuse to run unless `apps/api/.env.local` has `WHATSAPP_GRAPH_HOST=http://127.0.0.1:4010`, because each run would otherwise message real numbers. Start the stand-in with `node scripts/local/fake-whatsapp.mjs`, and restart the API after adding the line. `E2E_REAL_WHATSAPP=1` skips the check on purpose.
 
 ### Automated End-to-End Live Runner
 Run the automated end-to-end suite combining signed webhook execution and Maestro UI flows against the local stack:
