@@ -36,6 +36,20 @@ describe("triageMedia", () => {
     assert.match(seen[0]?.prompt ?? "", /se está derramando mi excusado/);
   });
 
+  it("tells Spark that the customer's words about a leak outweigh what it cannot see", async () => {
+    const prompts: string[] = [];
+
+    await triageMedia(
+      async (input) => {
+        prompts.push(input.prompt);
+        return JSON.stringify(OVERFLOW);
+      },
+      { mediaType: "video", mediaUrl: "u", caption: "Mi llave gotea sin parar" },
+    );
+
+    assert.match(prompts[0] ?? "", /never answer wont_help because you cannot see it/);
+  });
+
   it("treats a valve name made only of spaces as no valve", async () => {
     const triage = await triageMedia(answering({ ...OVERFLOW, valveObject: "  " }), {
       mediaType: "image",

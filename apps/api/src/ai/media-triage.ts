@@ -36,7 +36,7 @@ const TRIAGE_PROMPT = [
   "A customer sent this to a home-repair assistant. Describe only what is visible or audible; do not assume a cause you cannot see.",
   "problem: one short sentence on what is wrong.",
   "severity: emergency when water or danger is spreading now, urgent when it needs help today, routine when it can wait, none when nothing is wrong.",
-  "waterShutOff: helps when closing a water supply valve would stop this problem. wont_help when it clearly would not, such as rain, a roof or gutter, an old stain, or nothing wrong. unclear in every other case, and whenever you doubt.",
+  "waterShutOff: helps when closing a water supply valve would stop this problem. wont_help when it clearly would not, such as rain, a roof or gutter, an old stain, or nothing wrong. unclear in every other case, and whenever you doubt. If the customer says water is leaking or flowing from a pipe, faucet, toilet or fixture, never answer wont_help because you cannot see it: answer helps, or unclear if their words leave it open.",
   "valveObject: the shortest plain noun for a water shut-off valve you can clearly see, such as valve. Null when none is clearly visible.",
   "bestSeconds: for a video, the second where that valve, or otherwise the problem, is clearest. Null for a photo.",
 ].join("\n");
