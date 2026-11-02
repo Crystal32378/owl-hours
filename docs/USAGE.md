@@ -29,7 +29,7 @@ Ensure your environment satisfies the following requirements before starting:
 
 One command runs everything on your machine: local Supabase with seed data, the API, a stand-in for WhatsApp, the owner app on the web, and one customer walked through the demo. No account, no key, and nothing reaches a real phone.
 
-You need Docker running, Node 24, pnpm and ffmpeg. The ports 3000, 4010, 4011, 8081 and Supabase's 54321-54324 must be free.
+You need Docker running, Node 24, pnpm and ffmpeg. The ports 3000, 4010, 4011, 8081 and Supabase's 54321-54324 must be free. Close Expo Go on any simulator first: it keeps reconnecting to port 8081 until the machine runs out of local ports, and requests start to fail.
 
 ```sh
 pnpm install
