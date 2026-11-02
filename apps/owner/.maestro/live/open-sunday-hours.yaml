@@ -1,0 +1,21 @@
+# Opens Sunday in the hours editor and saves; the e2e script then reads business_hours.
+appId: host.exp.Exponent
+---
+- openLink: "exp://127.0.0.1:8081/--/requests"
+- extendedWaitUntil:
+    visible: ".*Requests"
+    timeout: 60000
+- openLink: "exp://127.0.0.1:8081/--/business/hours"
+- extendedWaitUntil:
+    visible: "Mon.*"
+    timeout: 30000
+- takeScreenshot: live-hours-editor
+- scrollUntilVisible:
+    element: "Sun.*"
+    timeout: 15000
+- tapOn: "Sun.*"
+- scrollUntilVisible:
+    element: "Save"
+    timeout: 15000
+- tapOn: "Save"
+- takeScreenshot: live-hours-saved

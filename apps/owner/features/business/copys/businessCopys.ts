@@ -15,6 +15,7 @@ export const businessCopys = {
   pricesRow: "Prices",
   extraFeesRow: "Extra fees",
   hoursRow: "Hours",
+  hoursEmpty: "Add your opening hours",
   serviceAreaRow: "Service area",
   serviceAreaMapLabel: "Map of your service area",
   websiteRow: "Website",

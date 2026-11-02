@@ -4,7 +4,7 @@ import { weekdayNames } from "../copys/hoursCopys.ts";
 export type OpeningHours = { weekday: number; opens: string; closes: string };
 
 // Week order of the summary: Monday first, Sunday last, as the design reads.
-const WEEK = [1, 2, 3, 4, 5, 6, 0];
+export const WEEK = [1, 2, 3, 4, 5, 6, 0];
 
 // The Hours row of a live business ("Mon–Sat, 8 AM–8 PM"): consecutive days
 // with the same hours share one range; a closed day breaks the run.
