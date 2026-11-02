@@ -4,7 +4,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createChatCompletion, createMetaClient } from "@owl-hours/meta-models";
 import { createWhatsAppClient, type WhatsAppClient } from "@owl-hours/whatsapp";
-import { loadConfig, loadMetaConfig, loadWhatsAppConfig, type ApiConfig, type WhatsAppConfig } from "./config.ts";
+import { loadConfig, loadMetaConfig, loadWhatsAppConfig, metaClientOptions, type ApiConfig, type WhatsAppConfig } from "./config.ts";
 import { createServiceClient } from "./db/client.ts";
 import { createSupabaseAuthenticator } from "./http/auth.ts";
 import type { MetaDeps } from "./meta/graph.ts";
@@ -31,7 +31,7 @@ export type LiveDeps = {
 };
 
 export function createLiveV1Deps(config: ApiConfig = loadConfig(), whatsapp?: WhatsAppClient): V1Deps {
-  const meta = createMetaClient({ apiKey: config.metaModelApiKey });
+  const meta = createMetaClient(metaClientOptions(config));
   return {
     authenticate: createSupabaseAuthenticator(config),
     serviceDb: createServiceClient(config),
@@ -58,7 +58,7 @@ export function loadLiveDeps(env: Record<string, string | undefined> = process.e
     waReason = reasonOf(error);
   }
   const client = waConfig
-    ? createWhatsAppClient({ accessToken: waConfig.accessToken, phoneNumberId: waConfig.phoneNumberId, graphVersion: waConfig.graphVersion })
+    ? createWhatsAppClient({ accessToken: waConfig.accessToken, phoneNumberId: waConfig.phoneNumberId, graphVersion: waConfig.graphVersion, graphHost: waConfig.graphHost })
     : undefined;
   const v1 = { ...createLiveV1Deps(config, client), meta: loadMetaDeps(env) };
   if (!waConfig || !client) {

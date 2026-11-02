@@ -2,8 +2,18 @@
 // the variables that are wrong and never echo their values.
 import { z } from "zod";
 
+const LOOPBACK_HOSTNAMES = ["127.0.0.1", "localhost"];
+
+// A stand-in for a Meta service, for local runs. Limited to this machine because the access token
+// travels with every request.
+const loopbackUrl = z.preprocess(
+  (value) => (value === "" ? undefined : value),
+  z.string().url().refine((url) => LOOPBACK_HOSTNAMES.includes(new URL(url).hostname)).optional(),
+);
+
 const envSchema = z.object({
   META_MODEL_API_KEY: z.string().min(1),
+  META_MODEL_BASE_URL: loopbackUrl,
   SUPABASE_URL: z.string().url(),
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(30),
   SUPABASE_ANON_KEY: z.string().min(30),
@@ -12,6 +22,7 @@ const envSchema = z.object({
 
 export type ApiConfig = {
   metaModelApiKey: string;
+  metaModelBaseUrl: string | undefined;
   supabaseUrl: string;
   supabaseServiceRoleKey: string;
   supabaseAnonKey: string;
@@ -28,6 +39,7 @@ const whatsappSchema = z.object({
   WHATSAPP_VERIFY_TOKEN: z.string().min(16),
   META_APP_SECRET: z.string().min(16),
   WHATSAPP_GRAPH_VERSION: z.preprocess(blankIsUnset, z.string().regex(/^v[0-9]{1,3}\.[0-9]$/).optional()),
+  WHATSAPP_GRAPH_HOST: loopbackUrl,
 });
 
 export type WhatsAppConfig = {
@@ -36,6 +48,7 @@ export type WhatsAppConfig = {
   verifyToken: string;
   appSecret: string;
   graphVersion: string | undefined;
+  graphHost: string | undefined;
 };
 
 export function loadWhatsAppConfig(env: Record<string, string | undefined> = process.env): WhatsAppConfig {
@@ -50,6 +63,7 @@ export function loadWhatsAppConfig(env: Record<string, string | undefined> = pro
     verifyToken: parsed.data.WHATSAPP_VERIFY_TOKEN,
     appSecret: parsed.data.META_APP_SECRET,
     graphVersion: parsed.data.WHATSAPP_GRAPH_VERSION,
+    graphHost: parsed.data.WHATSAPP_GRAPH_HOST && withoutTrailingSlash(parsed.data.WHATSAPP_GRAPH_HOST),
   };
 }
 
@@ -108,9 +122,14 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
   }
   return {
     metaModelApiKey: parsed.data.META_MODEL_API_KEY,
+    metaModelBaseUrl: parsed.data.META_MODEL_BASE_URL && withoutTrailingSlash(parsed.data.META_MODEL_BASE_URL),
     supabaseUrl: parsed.data.SUPABASE_URL,
     supabaseServiceRoleKey: parsed.data.SUPABASE_SERVICE_ROLE_KEY,
     supabaseAnonKey: parsed.data.SUPABASE_ANON_KEY,
     serverKey: parsed.data.ZUKKI_SERVER_KEY,
   };
+}
+
+export function metaClientOptions(config: ApiConfig): { apiKey: string; baseUrl?: string } {
+  return { apiKey: config.metaModelApiKey, ...(config.metaModelBaseUrl ? { baseUrl: config.metaModelBaseUrl } : {}) };
 }

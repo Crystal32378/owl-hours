@@ -17,6 +17,10 @@ export async function logMetaModelAccess(
 ): Promise<void> {
   const key = env.META_MODEL_API_KEY;
   if (!key) return;
+  if (env.META_MODEL_BASE_URL) {
+    log.warn(`Meta models: not calling Meta, answers come from ${env.META_MODEL_BASE_URL}`);
+    return;
+  }
   const pasted = /\s/.test(key) ? ", has spaces or line breaks" : "";
   const prefix = `Meta models: key length ${key.length}${pasted}, fingerprint ${fingerprintOf(key)}`;
   try {
