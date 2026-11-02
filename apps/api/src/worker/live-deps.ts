@@ -5,7 +5,8 @@ import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, extname, join } from "node:path";
 import { z } from "zod";
-import { createChatCompletion, createMetaClient, segmentImage, transcribeWav } from "@owl-hours/meta-models";
+import { createChatCompletion, createMetaClient, segmentImage, transcribeWav, understandMedia } from "@owl-hours/meta-models";
+import { triageMedia } from "../ai/media-triage.ts";
 import { markValve } from "../ai/valve-step.ts";
 import { runAgent } from "../agent/run-agent.ts";
 import { createAgentTools } from "../agent/tools.ts";
@@ -13,14 +14,11 @@ import { loadConfig, type ApiConfig } from "../config.ts";
 import { createServiceClient } from "../db/client.ts";
 import { createSupabaseRepository } from "../db/repository.ts";
 import { drawMarkup } from "../media/draw-markup.ts";
-import { extractFrameArgs, runFfmpeg, toWavArgs } from "../media/ffmpeg.ts";
+import { extractFrame, runFfmpeg, toWavArgs } from "../media/ffmpeg.ts";
 import { createMediaStore } from "../media/media-store.ts";
 import { TEMP_PREFIX } from "../orchestrator/media.ts";
 import { unwrap } from "../services/db-result.ts";
 import type { PipelineDeps } from "./process-message.ts";
-
-// A second in skips the blurry first frame most phone videos start with.
-const FRAME_AT_SECONDS = 1;
 
 function withSuffix(path: string, suffix: string): string {
   const extension = extname(path);
@@ -57,21 +55,23 @@ export function createLiveDeps(config: ApiConfig = loadConfig()): PipelineDeps {
       const result = await transcribeWav(client, await readFile(wavPath));
       return result.transcript;
     },
-    extractFrame: async (videoPath) => {
+    triage: async (mediaPath, mediaType, caption) =>
+      triageMedia((input) => understandMedia(client, input), {
+        mediaType,
+        mediaUrl: `data:${mediaType === "video" ? "video/mp4" : "image/jpeg"};base64,${(await readFile(mediaPath)).toString("base64")}`,
+        caption,
+      }),
+    extractFrame: async (videoPath, atSeconds) => {
       const output = withSuffix(videoPath, "-frame.jpg");
-      try {
-        await runFfmpeg(extractFrameArgs(videoPath, output, FRAME_AT_SECONDS));
-      } catch {
-        // Clips shorter than FRAME_AT_SECONDS: take the first frame instead.
-        await runFfmpeg(extractFrameArgs(videoPath, output, 0));
-      }
+      await extractFrame(videoPath, output, atSeconds);
       return output;
     },
     toDataUrl: async (imagePath) => `data:image/jpeg;base64,${(await readFile(imagePath)).toString("base64")}`,
-    markValve: (framePath, imageUrl) =>
+    markValve: (framePath, imageUrl, concept) =>
       markValve({
         framePath,
         imageUrl,
+        concept,
         segment: (concept, url) => segmentImage(client, { concept, imageUrl: url }),
         drawOverlay: (frame, svgFor) => drawMarkup(frame, withSuffix(frame, "-valve.jpg"), svgFor),
       }),

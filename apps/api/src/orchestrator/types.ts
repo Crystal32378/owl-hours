@@ -104,6 +104,8 @@ export type MediaReading = {
   markedFrameUrl: string | null;
   // Set when the valve was looked for but not found with confidence.
   valveAdvice: string | null;
+  // Spark saw closing a water valve will not stop this (rain, a roof, an old stain).
+  shutOffWontHelp: boolean;
 };
 
 export type RespondDeps = {

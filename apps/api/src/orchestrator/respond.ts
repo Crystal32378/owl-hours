@@ -146,11 +146,12 @@ async function onMessage(deps: RespondDeps, ctx: TurnContext, turn: Extract<Turn
   let parts: ContentPart[];
   let markedFrameUrl: string | null = null;
   let valveAdvice: string | null = null;
+  let shutOffWontHelp = false;
   if (turn.kind === "media") {
     const findValve = facts.category === null || facts.category === "plumbing";
     const reading = await deps.readMedia({ conversationId: ctx.conversationId, mediaId: turn.mediaId, mediaType: turn.mediaType, caption: turn.caption, findValve });
     if (reading.transcript) await deps.store.saveTranscript(turn.mediaId, reading.transcript);
-    ({ parts, markedFrameUrl, valveAdvice } = reading);
+    ({ parts, markedFrameUrl, valveAdvice, shutOffWontHelp } = reading);
   } else {
     parts = [textPart(turn.text)];
   }
@@ -187,7 +188,9 @@ async function onMessage(deps: RespondDeps, ctx: TurnContext, turn: Extract<Turn
   }
 
   if (facts.state === "with_zukki" && facts.safety === "none" && urgent) {
-    if (category === "plumbing") {
+    if (category === "plumbing" && shutOffWontHelp) {
+      await queue(copy.shutOffWontHelp());
+    } else if (category === "plumbing") {
       await queue(copy.waterSafety({ markedFrameUrl, advice: valveAdvice }));
       return;
     }

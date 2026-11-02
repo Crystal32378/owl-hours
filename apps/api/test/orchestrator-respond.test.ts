@@ -92,7 +92,7 @@ function setup(options: {
     },
     readMedia: async (input) => {
       asked.findValve = input.findValve;
-      return { parts: [], transcript: null, markedFrameUrl: null, valveAdvice: null, ...options.reading };
+      return { parts: [], transcript: null, markedFrameUrl: null, valveAdvice: null, shutOffWontHelp: false, ...options.reading };
     },
     answer: async (input) => {
       asked.note = input.note;
@@ -204,6 +204,20 @@ describe("respond: urgent leak", () => {
     assert.equal(queued[0]?.message.payload?.header_image_url, undefined);
     assert.match(queued[0]?.message.body ?? "", /^Let's stop the water first\. It is usually a small handle on the pipe\. Any outlets or cables near the water\?$/);
     assert.deepEqual(buttonIds(queued[0]), ["safety_done", "safety_cant_find"]);
+  });
+
+  it("never says to close a valve when that will not stop the water, and moves on to the location", async () => {
+    const { deps, queued } = setup({
+      understanding: { category: "plumbing", urgent: true },
+      reading: { shutOffWontHelp: true },
+    });
+
+    await respond(deps, ctx(), { kind: "media", mediaId: MEDIA, mediaType: "video", caption: null });
+
+    assert.match(queued[0]?.message.body ?? "", /Closing your water valve won't stop this/);
+    assert.match(queued[0]?.message.body ?? "", /outlets or cables/);
+    assert.equal(queued[0]?.message.kind, "text");
+    assert.equal(queued[1]?.message.kind, "location_request");
   });
 
   it("stays quiet on a voice note while the safety buttons wait, but keeps the transcript", async () => {

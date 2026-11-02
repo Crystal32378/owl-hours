@@ -50,7 +50,7 @@ function setup(options: { facts?: Partial<ConversationFacts> } = {}) {
       connect: async () => ({ expiresAt: new Date(NOW.getTime() + 5 * 60_000).toISOString() }),
     },
     understand: async () => ({ onTopic: true, category: "plumbing", urgent: true, title: null, summary: null }),
-    readMedia: async () => ({ parts: [], transcript: null, markedFrameUrl: null, valveAdvice: null }),
+    readMedia: async () => ({ parts: [], transcript: null, markedFrameUrl: null, valveAdvice: null, shutOffWontHelp: false }),
     answer: async () => "Happy to help.",
     typing: async () => {},
     now: () => NOW,
