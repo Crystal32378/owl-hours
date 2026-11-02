@@ -73,9 +73,12 @@ async function businessDisplayName(deps: RespondDeps, businessId: string): Promi
 
 async function onButton(deps: RespondDeps, ctx: TurnContext, id: string, queue: Queue) {
   const facts = await deps.store.facts(ctx.conversationId);
+  if (id === "safety_got_it") {
+    if (!facts.locationAsked) await queue(copy.locationRequest(facts.category ?? "plumbing", { waterOff: false }));
+    return;
+  }
   if (id === "safety_done" || id === "safety_cant_find") {
     if (id === "safety_cant_find") await queue(copy.cantFindValve());
-    if (facts.locationAsked) return;
     await queue(copy.locationRequest(facts.category ?? "plumbing", { waterOff: id === "safety_done" }));
     return;
   }

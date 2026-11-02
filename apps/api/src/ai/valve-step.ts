@@ -10,7 +10,8 @@ import type { SvgForSize } from "../media/draw-markup.ts";
 export const VALVE_CONCEPT = "valve";
 const BROAD_VALVE_CONCEPT = "plumbing valve";
 const MAX_VALVE_POINTS = 4;
-const MAX_VALVE_FRAME_SHARE = 0.25;
+const MAX_VALVE_FRAME_SHARE = 0.5;
+const SAME_BOX_OVERLAP = 0.5;
 
 // Starting point only: tune on real customer videos before the demo.
 export const VALVE_CONFIDENCE_THRESHOLD = 0.5;
@@ -93,15 +94,21 @@ function isValveSized({ box, width, height }: SamDetection): boolean {
   return (box.x2 - box.x1) * (box.y2 - box.y1) <= width * height * MAX_VALVE_FRAME_SHARE;
 }
 
-// Two points on one valve would draw one ring over the other.
+// Two points on one valve would draw one ring over the other. A valve inside a larger box is a different object.
 function distinctBoxes(detections: SamDetection[]): SamDetection[] {
-  return detections.filter((detection, index) => {
-    const cx = (detection.box.x1 + detection.box.x2) / 2;
-    const cy = (detection.box.y1 + detection.box.y2) / 2;
-    return !detections
-      .slice(0, index)
-      .some(({ box }) => cx >= box.x1 && cx <= box.x2 && cy >= box.y1 && cy <= box.y2);
-  });
+  return detections.filter(
+    (detection, index) =>
+      !detections.slice(0, index).some(({ box }) => overlapShare(box, detection.box) > SAME_BOX_OVERLAP),
+  );
+}
+
+// Intersection over union, 1 for identical boxes.
+function overlapShare(a: SamDetection["box"], b: SamDetection["box"]): number {
+  const width = Math.max(0, Math.min(a.x2, b.x2) - Math.max(a.x1, b.x1));
+  const height = Math.max(0, Math.min(a.y2, b.y2) - Math.max(a.y1, b.y1));
+  const shared = width * height;
+  const area = (box: SamDetection["box"]) => (box.x2 - box.x1) * (box.y2 - box.y1);
+  return shared / (area(a) + area(b) - shared);
 }
 
 function warn(step: string, error: unknown): void {

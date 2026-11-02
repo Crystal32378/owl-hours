@@ -10,7 +10,7 @@ export const SAFETY_BUTTONS: ReplyButton[] = [
 
 const MARKED_BODY = "Let's stop the water first: turn this valve clockwise. Any outlets or cables near the water?";
 const MARKED_FOR_LATER_BODY = "This is your shut-off valve. If water gets out of hand, turn it clockwise.";
-const GOT_IT_BUTTON: ReplyButton[] = [{ id: "safety_done", title: "Got it" }];
+const GOT_IT_BUTTON: ReplyButton[] = [{ id: "safety_got_it", title: "Got it" }];
 const DEFAULT_ADVICE =
   "Find the shut-off valve on the pipe under or behind the fixture and turn it clockwise until it stops.";
 

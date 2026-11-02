@@ -133,6 +133,29 @@ describe("markValve at Spark's points", () => {
     assert.equal(result.kind, "fallback");
   });
 
+  it("keeps a real valve shot close up, at under half the frame", async () => {
+    const closeUp = { ...detection(0, 0.8), box: { x1: 100, y1: 100, x2: 500, y2: 700 }, width: 576, height: 1024 };
+
+    const { result } = await marked({ locate: async () => [{ x: 500, y: 400 }], segmentAt: async () => [closeUp] });
+
+    assert.equal(result.kind, "marked");
+  });
+
+  it("keeps a valve inside a larger box, whichever point came first", async () => {
+    const fixture = { ...detection(0, 0.7), box: { x1: 0, y1: 0, x2: 300, y2: 300 }, width: 576, height: 1024 };
+    const valve = { ...detection(1, 0.7), box: { x1: 100, y1: 100, x2: 160, y2: 160 }, width: 576, height: 1024 };
+    let calls = 0;
+
+    const { rings } = await marked({
+      segmentAt: async () => {
+        calls += 1;
+        return [calls === 1 ? fixture : valve];
+      },
+    });
+
+    assert.equal(rings, 2);
+  });
+
   it("circles one valve when two points land on it", async () => {
     const { rings } = await marked({});
 

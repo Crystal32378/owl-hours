@@ -248,12 +248,40 @@ describe("respond: urgent leak", () => {
     assert.equal(queued[3]?.message.kind, "location_request");
   });
 
-  it("does not ask for the location again when the Got it button comes after it was asked", async () => {
-    const { deps, queued } = setup({ facts: { category: "plumbing", urgency: "today", safety: "answered", locationAsked: true } });
+  it("gives the later-use card one Got it button", async () => {
+    const { deps, queued } = setup({
+      understanding: { category: "plumbing", urgent: false },
+      reading: { markedFrameUrl: "https://x.test/marked.jpg", shutOffWontHelp: true },
+    });
 
-    await respond(deps, ctx(), button("safety_done", "Got it"));
+    await respond(deps, ctx(), { kind: "media", mediaId: MEDIA, mediaType: "video", caption: null });
+
+    assert.deepEqual(buttonIds(queued[1]), ["safety_got_it"]);
+  });
+
+  it("asks nothing again when Got it comes after the location was asked", async () => {
+    const { deps, queued } = setup({ facts: { category: "plumbing", safety: "answered", locationAsked: true } });
+
+    await respond(deps, ctx(), button("safety_got_it", "Got it"));
 
     assert.deepEqual(queued, []);
+  });
+
+  it("asks for the location on Got it when it was not asked, without saying the water is off", async () => {
+    const { deps, queued } = setup({ facts: { category: "plumbing", safety: "answered", locationAsked: false } });
+
+    await respond(deps, ctx(), button("safety_got_it", "Got it"));
+
+    assert.equal(queued[0]?.message.kind, "location_request");
+    assert.doesNotMatch(queued[0]?.message.body ?? "", /^(Good|Great|Thanks)/);
+  });
+
+  it("still answers Done on the original card when the location was already asked", async () => {
+    const { deps, queued } = setup({ facts: { category: "plumbing", safety: "answered", locationAsked: true } });
+
+    await respond(deps, ctx(), button("safety_done", "Done, no cables"));
+
+    assert.equal(queued[0]?.message.kind, "location_request");
   });
 
   it("keeps the reading when it cannot tell the category, then shows the list", async () => {
