@@ -38,6 +38,31 @@ export type WhatsAppConfig = {
   graphVersion: string | undefined;
 };
 
+const webhookReceiveOnlySchema = z.object({
+  WHATSAPP_VERIFY_TOKEN: z.string().min(16),
+  META_APP_SECRET: z.string().min(16),
+});
+
+export type WebhookReceiveOnlyConfig = {
+  verifyToken: string;
+  appSecret: string;
+};
+
+// The receive-only smoke-test mode needs only the webhook verification and
+// signature secrets. It must not require credentials for model, database or
+// WhatsApp Cloud API clients.
+export function loadWebhookReceiveOnlyConfig(env: Record<string, string | undefined> = process.env): WebhookReceiveOnlyConfig {
+  const parsed = webhookReceiveOnlySchema.safeParse(env);
+  if (!parsed.success) {
+    const names = [...new Set(parsed.error.issues.map((issue) => issue.path.join(".")))];
+    throw new Error(`WhatsApp receive-only mode is not configured: ${names.join(", ")} missing or invalid`);
+  }
+  return {
+    verifyToken: parsed.data.WHATSAPP_VERIFY_TOKEN,
+    appSecret: parsed.data.META_APP_SECRET,
+  };
+}
+
 export function loadWhatsAppConfig(env: Record<string, string | undefined> = process.env): WhatsAppConfig {
   const parsed = whatsappSchema.safeParse(env);
   if (!parsed.success) {

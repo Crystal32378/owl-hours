@@ -90,7 +90,13 @@ Set the Meta app's WhatsApp webhook to `https://<api host>/webhooks/whatsapp`, w
 | `GET` | Meta's verification: returns `hub.challenge` when `hub.mode=subscribe` and `hub.verify_token` matches, else `403`. |
 | `POST` | Checks `X-Hub-Signature-256` (HMAC-SHA256 of the raw body with `META_APP_SECRET`; `401` if wrong), then stores every event and answers `200 { received }`. If storing fails it answers `500` and Meta retries; every write is idempotent on WhatsApp's message id. |
 
-What it stores:
+### Receive-only smoke-test mode
+
+Set `WHATSAPP_WEBHOOK_MODE=receive-only` with `WHATSAPP_VERIFY_TOKEN` and `META_APP_SECRET`. This mode disables `/v1` and does not initialize the model, Supabase, WhatsApp sender, outbox, notices or recovery worker. `GET` still verifies the token and returns Meta's challenge. A valid signed `POST` is parsed, acknowledged with `200 { received }`, and discarded; only the event count is logged. No message content is stored. This confirms the HTTPS route and signature path, but does not test message persistence or customer replies. Do not use this mode when inbound events must be retained.
+
+### Normal-mode storage
+
+In normal mode, it stores:
 
 - Text, button replies and list replies: `record_inbound_message` (same as `POST /v1/internal/inbound`). A tap on `quote_approve:<id>` also approves that quote.
 - Location: `save_customer_location`.

@@ -7,7 +7,7 @@ import { createApp } from "./index.ts";
 import { readPort, readPollMs } from "./port.ts";
 import { startNoticeLoop } from "./orchestrator/notices.ts";
 import { startRecoveryLoop } from "./orchestrator/recover.ts";
-import { loadLiveDeps } from "./v1-live.ts";
+import { loadRuntimeDeps } from "./v1-live.ts";
 import { startOutboxLoop } from "./whatsapp/outbox-loop.ts";
 
 const SHUTDOWN_GRACE_MS = 10_000;
@@ -19,7 +19,7 @@ const RECOVERY_POLL_MS = 60_000;
 function main(): void {
   const port = readPort(process.env.PORT);
   const pollMs = readPollMs(process.env.OUTBOX_POLL_MS);
-  const live = loadLiveDeps();
+  const live = loadRuntimeDeps();
   if ("unavailable" in live.v1) {
     console.warn(`v1 API disabled (every /v1 call returns 503): ${live.v1.unavailable}`);
   }

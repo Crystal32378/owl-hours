@@ -4,7 +4,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createChatCompletion, createMetaClient } from "@owl-hours/meta-models";
 import { createWhatsAppClient, type WhatsAppClient } from "@owl-hours/whatsapp";
-import { loadConfig, loadMetaConfig, loadWhatsAppConfig, type ApiConfig, type WhatsAppConfig } from "./config.ts";
+import { loadConfig, loadMetaConfig, loadWhatsAppConfig, loadWebhookReceiveOnlyConfig, type ApiConfig, type WhatsAppConfig } from "./config.ts";
 import { createServiceClient } from "./db/client.ts";
 import { createSupabaseAuthenticator } from "./http/auth.ts";
 import type { MetaDeps } from "./meta/graph.ts";
@@ -95,6 +95,34 @@ export function loadLiveDeps(env: Record<string, string | undefined> = process.e
     recovery: respondTo
       ? { db: v1.serviceDb, enqueue, run: (ctx, turn) => runTurn({ db: v1.serviceDb, respond: respondTo }, ctx, turn), log }
       : null,
+  };
+}
+
+// Explicitly bypass every live dependency in receive-only mode. The webhook
+// verifies Meta's requests, reports only the accepted event count, then drops
+// the event contents without storing them or scheduling replies.
+export function loadRuntimeDeps(env: Record<string, string | undefined> = process.env, log: Logger = console): LiveDeps {
+  const mode = env.WHATSAPP_WEBHOOK_MODE;
+  if (mode === undefined || mode === "") return loadLiveDeps(env, log);
+  if (mode !== "receive-only") {
+    throw new Error("WHATSAPP_WEBHOOK_MODE must be unset or receive-only");
+  }
+
+  const config = loadWebhookReceiveOnlyConfig(env);
+  log.warn("WhatsApp webhook receive-only mode enabled; valid events are acknowledged and discarded");
+  return {
+    v1: { unavailable: "Disabled by WHATSAPP_WEBHOOK_MODE=receive-only" },
+    whatsapp: {
+      verifyToken: config.verifyToken,
+      appSecret: config.appSecret,
+      handle: async (events) => {
+        log.info(`whatsapp receive-only: discarded ${events.length} event(s)`);
+      },
+      log,
+    },
+    outbox: null,
+    notices: null,
+    recovery: null,
   };
 }
 

@@ -1,9 +1,9 @@
 // WhatsApp Cloud API webhook (Meta app > WhatsApp > Configuration).
 // GET answers Meta's verification with hub.challenge when hub.verify_token
 // matches WHATSAPP_VERIFY_TOKEN. POST checks X-Hub-Signature-256 against
-// META_APP_SECRET over the raw body, stores the events, then answers 200.
-// Media downloads run after the answer; everything else is stored first so
-// a failure returns 500 and Meta retries (writes are idempotent).
+// META_APP_SECRET over the raw body, passes events to the configured handler,
+// then answers 200. The normal handler stores them before the answer; an
+// explicitly selected receive-only handler may acknowledge and discard them.
 import { createHash, timingSafeEqual } from "node:crypto";
 import { Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
