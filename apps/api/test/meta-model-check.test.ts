@@ -65,7 +65,37 @@ describe("logMetaModelAccess", () => {
 
     await run();
 
-    assert.match(lines.join("\n"), /network down/);
+    assert.match(lines.join("\n"), /could not list models: Error/);
+  });
+
+  it("never logs the key from a request error, as when a bad paste makes the header invalid", async () => {
+    const { lines, run } = setup(async () => {
+      throw new TypeError(`Bearer ${KEY}\n is not a legal HTTP header value`);
+    });
+
+    await run();
+
+    assert.doesNotMatch(lines.join("\n"), new RegExp(KEY));
+    assert.match(lines.join("\n"), /could not list models/);
+  });
+
+  it("flags a key with spaces or line breaks, which a bad paste leaves behind", async () => {
+    const { lines, run } = setup(listing(ALL));
+
+    await run({ META_MODEL_API_KEY: `${KEY}\n` });
+
+    assert.match(lines.join("\n"), /has spaces or line breaks/);
+    assert.doesNotMatch(lines.join("\n"), new RegExp(KEY));
+  });
+
+  it("gives the network cause, which is where fetch keeps it", async () => {
+    const { lines, run } = setup(async () => {
+      throw new TypeError("fetch failed", { cause: Object.assign(new Error("connect failed"), { code: "ECONNREFUSED" }) });
+    });
+
+    await run();
+
+    assert.match(lines.join("\n"), /ECONNREFUSED/);
   });
 
   it("says nothing and asks nothing without a key", async () => {

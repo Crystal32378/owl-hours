@@ -17,7 +17,8 @@ export async function logMetaModelAccess(
 ): Promise<void> {
   const key = env.META_MODEL_API_KEY;
   if (!key) return;
-  const prefix = `Meta models: key length ${key.length}, fingerprint ${fingerprintOf(key)}`;
+  const pasted = /\s/.test(key) ? ", has spaces or line breaks" : "";
+  const prefix = `Meta models: key length ${key.length}${pasted}, fingerprint ${fingerprintOf(key)}`;
   try {
     const response = await fetchImpl(`${META_MODEL_BASE_URL}/models`, {
       headers: { authorization: `Bearer ${key}` },
@@ -29,7 +30,7 @@ export async function logMetaModelAccess(
     }
     reportModels(prefix, await modelIdsOf(response), log);
   } catch (error) {
-    log.warn(`${prefix}: could not list models: ${error instanceof Error ? error.message : String(error)}`);
+    log.warn(`${prefix}: could not list models: ${failureOf(error)}`);
   }
 }
 
@@ -43,6 +44,13 @@ function reportModels(prefix: string, ids: string[], log: Log): void {
 async function modelIdsOf(response: Response): Promise<string[]> {
   const body = (await response.json()) as { data?: { id?: unknown }[] };
   return (body.data ?? []).flatMap(({ id }) => (typeof id === "string" ? [id] : []));
+}
+
+// Only the error's type and code: fetch puts an invalid header's value, the key, in its message.
+function failureOf(error: unknown): string {
+  if (!(error instanceof Error)) return "unknown error";
+  const { code } = (error.cause ?? {}) as { code?: unknown };
+  return typeof code === "string" ? `${error.name} ${code}` : error.name;
 }
 
 function fingerprintOf(key: string): string {
