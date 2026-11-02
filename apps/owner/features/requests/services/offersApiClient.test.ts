@@ -97,6 +97,22 @@ describe("offersApiClient.listOffers", () => {
     ]);
   });
 
+  it("puts media with a picture first, so a live video without a thumbnail does not hide the marked photo", async () => {
+    const video = { id: "m1", kind: "video", role: "evidence", durationMs: 6000, url: "https://cdn/v.mp4", thumbUrl: null };
+    const photo = { id: "m2", kind: "image", role: "marked_frame", durationMs: null, url: "https://cdn/p.jpg", thumbUrl: null };
+    const { service } = fakeApi(({ url }) => ({
+      status: 200,
+      body: { data: url.endsWith("status=offered") ? [{ ...anaOffer, media: [video, photo] }] : [] },
+    }));
+
+    const [offer] = await service.listOffers();
+
+    assert.deepEqual(offer?.media, [
+      { kind: "photo", url: "https://cdn/p.jpg", thumbUrl: "https://cdn/p.jpg" },
+      { kind: "video", url: "https://cdn/v.mp4", thumbUrl: "", durationS: 6 },
+    ]);
+  });
+
   it("returns the offers newest first, mapped to the app's offer shape", async () => {
     const { service } = fakeApi(offersByStatus);
 

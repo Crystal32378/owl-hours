@@ -96,7 +96,7 @@ function toOffer(row: ApiOffer & { status: OfferStatus }): Offer {
     urgent: row.urgent,
     distanceKm: row.distanceKm,
     approxLocation: row.approxLocation ?? "",
-    media: row.media.flatMap(toMedia),
+    media: withPictureFirst(row.media.flatMap(toMedia)),
     zukkiSummary: row.zukkiSummary ?? "",
     suggestedQuote: row.suggestedQuote,
     offeredAt: localTimestamp(row.offeredAt),
@@ -113,6 +113,11 @@ function untitledRequestTitle(category: string | null): string {
   if (!category) return requestsCopys.serviceRequest;
   const categoryName = category.charAt(0).toUpperCase() + category.slice(1);
   return `${categoryName} ${requestsCopys.requestWord}`;
+}
+
+// The card and the list show the first media. Live videos have no thumbnail, so they follow what has a picture.
+function withPictureFirst(media: Media[]): Media[] {
+  return [...media.filter((item) => item.thumbUrl), ...media.filter((item) => !item.thumbUrl)];
 }
 
 // Only video and image evidence reach the owner; a photo without its own thumbnail shows itself.
