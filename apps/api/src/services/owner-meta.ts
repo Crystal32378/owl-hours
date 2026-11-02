@@ -5,10 +5,11 @@
 // service_role and returns the owner to the owner web app.
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
+import { RepositoryError } from "../db/repository.ts";
 import type { OwnerSession } from "../http/auth.ts";
 import { HttpError } from "../http/respond.ts";
-import type { MetaDeps } from "../meta/graph.ts";
-import { signOAuthState } from "../meta/oauth-state.ts";
+import { createMetaGraph, MetaGraphError, type MetaDeps, type MetaPage } from "../meta/graph.ts";
+import { readOAuthState, signOAuthState, type OAuthOwner } from "../meta/oauth-state.ts";
 import type { Unavailable } from "../v1-live.ts";
 import { unwrap } from "./db-result.ts";
 
@@ -31,6 +32,9 @@ export const META_PERMISSIONS = [
   "instagram_content_publish",
 ];
 
+// Why the callback sent the owner back without linking (the owner app reads it).
+export type LinkFailure = "invalid_state" | "denied" | "invalid_request" | "meta_error" | "no_pages" | "forbidden" | "failed";
+
 export async function metaConnectUrl(s: OwnerSession, deps: MetaLinkDeps): Promise<{ url: string }> {
   const { config } = requireMeta(deps.meta);
   const tenantId = z.string().uuid().parse(unwrap(await s.db.rpc("caller_owned_business_id")));
@@ -51,6 +55,17 @@ export async function metaConnectUrl(s: OwnerSession, deps: MetaLinkDeps): Promi
   return { url: url.href };
 }
 
+// Where the callback sends the browser: the owner app's Linked accounts, with
+// meta=linked, or meta=error and the reason.
+export async function finishMetaLink(deps: MetaLinkDeps, query: Record<string, string>): Promise<string> {
+  const meta = requireMeta(deps.meta);
+  const failure = await linkFromCallback(meta, deps, query);
+  const url = new URL(meta.config.ownerReturnUrl);
+  url.searchParams.set("meta", failure ? "error" : "linked");
+  if (failure) url.searchParams.set("reason", failure);
+  return url.href;
+}
+
 export async function unlinkAccount(s: OwnerSession, accountId: string): Promise<{ id: string }> {
   // RLS lets only the business owner delete; a trigger deletes the Vault secret with the row.
   const rows = z.array(z.object({ id: z.string().uuid() }))
@@ -64,6 +79,61 @@ export function requireMeta(meta: MetaDeps | Unavailable | undefined): MetaDeps 
   if (!meta) throw new HttpError(503, "not_configured", "Facebook and Instagram are not configured on this server.");
   if ("unavailable" in meta) throw new HttpError(503, "not_configured", meta.unavailable);
   return meta;
+}
+
+async function linkFromCallback(meta: MetaDeps, deps: MetaLinkDeps, query: Record<string, string>): Promise<LinkFailure | null> {
+  const owner = readOAuthState(query.state ?? "", deps.serverKey, clock(deps));
+  if (!owner) return "invalid_state";
+  if (query.error) return "denied";
+  if (!query.code) return "invalid_request";
+  let pages: MetaPage[];
+  try {
+    pages = await sharedPages(meta, query.code);
+  } catch (error) {
+    if (!(error instanceof MetaGraphError)) throw error;
+    console.error(`[meta] login exchange failed: ${error.message}`);
+    return "meta_error";
+  }
+  if (pages.length === 0) return "no_pages";
+  return saveLinks(deps.serviceDb, owner, pages);
+}
+
+async function sharedPages(meta: MetaDeps, code: string): Promise<MetaPage[]> {
+  const graph = createMetaGraph(meta);
+  const userToken = await graph.longLivedUserToken(await graph.exchangeCode(code));
+  return graph.listPages(userToken);
+}
+
+// Instagram with Facebook Login posts with the Page token
+// (https://developers.facebook.com/docs/instagram-platform/content-publishing), so both rows store it.
+async function saveLinks(db: SupabaseClient, owner: OAuthOwner, pages: MetaPage[]): Promise<LinkFailure | null> {
+  try {
+    for (const page of pages) {
+      await saveLink(db, owner, { platform: "facebook_page", externalId: page.id, name: page.name, token: page.accessToken });
+      if (page.instagram) {
+        const name = page.instagram.username ? `@${page.instagram.username}` : page.name;
+        await saveLink(db, owner, { platform: "instagram", externalId: page.instagram.id, name, token: page.accessToken });
+      }
+    }
+    return null;
+  } catch (error) {
+    if (error instanceof RepositoryError && error.code === "42501") return "forbidden";
+    console.error(`[meta] saving linked accounts failed: ${error instanceof Error ? error.message : String(error)}`);
+    return "failed";
+  }
+}
+
+type Link = { platform: "facebook_page" | "instagram"; externalId: string; name: string; token: string };
+
+async function saveLink(db: SupabaseClient, owner: OAuthOwner, link: Link): Promise<void> {
+  unwrap(await db.rpc("save_linked_account", {
+    p_tenant_id: owner.tenantId,
+    p_user_id: owner.userId,
+    p_platform: link.platform,
+    p_external_id: link.externalId,
+    p_display_name: link.name,
+    p_token: link.token,
+  }));
 }
 
 function clock(deps: MetaLinkDeps): number {
