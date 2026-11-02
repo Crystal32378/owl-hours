@@ -5,6 +5,7 @@ import { useEffect, useRef, useState, type RefObject } from 'react';
 import { Map as MapLibreMap, Marker, type GeoJSONSource } from 'maplibre-gl';
 import type { GeoPoint } from '../data/types';
 import { circleBounds, mapStyleUrl, OVERVIEW_CAMERA, radiusCircle, toGeoPoint } from './areaMap';
+import { ATTRIBUTION_VISIBLE_MS, collapseAttribution } from './attribution';
 
 // The service-area map (MapLibre GL JS, https://maplibre.org/maplibre-gl-js/docs/API/classes/Map/)
 // rendered inside a DOM screen: the area step and the Business tab. It only draws: the
@@ -62,14 +63,16 @@ function useMapLibre(
       style: styleUrl,
       ...OVERVIEW_CAMERA,
       interactive: isEditable,
-      attributionControl: { compact: false },
+      attributionControl: { compact: true },
     });
     const pin = createPin(accent, isEditable ? (point) => onMoveRef.current?.(point) : null);
     map.on('load', () => {
       addAreaLayers(map, accent);
       setHandle({ map, pin });
     });
+    const collapseTimer = setTimeout(() => collapseAttribution(container), ATTRIBUTION_VISIBLE_MS);
     return () => {
+      clearTimeout(collapseTimer);
       setHandle(null);
       map.remove();
     };
