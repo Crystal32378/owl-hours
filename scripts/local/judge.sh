@@ -26,6 +26,7 @@ cd "$root"
 echo "Starting local Supabase (the first run downloads its images)..."
 npx supabase start >/dev/null
 npx supabase migration up --local >/dev/null
+bash scripts/local/seed-content-demo.sh >/dev/null
 eval "$(npx supabase status -o env 2>/dev/null | grep -E '^(API_URL|ANON_KEY|SERVICE_ROLE_KEY|MAILPIT_URL)=')"
 
 models_note="live: this run calls Meta with your key"
