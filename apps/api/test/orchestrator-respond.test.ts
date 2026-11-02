@@ -217,8 +217,21 @@ describe("respond: urgent leak", () => {
     assert.match(queued[0]?.message.body ?? "", /Closing your water valve won't stop this/);
     assert.match(queued[0]?.message.body ?? "", /outlets or cables/);
     // The store reads this variant as a finished safety step, so the next message cannot send the valve card.
+    assert.equal(queued[0]?.message.kind, "text");
     assert.equal(queued[0]?.message.payload?.variant, "safety_text");
     assert.equal(queued[1]?.message.kind, "location_request");
+  });
+
+  it("sends no valve card on the next urgent message once safety is answered", async () => {
+    const { deps, queued } = setup({
+      facts: { category: "plumbing", urgency: "now", safety: "answered" },
+      understanding: { category: "plumbing", urgent: true },
+    });
+
+    await respond(deps, ctx(), { kind: "text", text: "It's getting worse" });
+
+    assert.equal(queued.some((entry) => entry.message.payload?.variant === "safety"), false);
+    assert.equal(queued[0]?.message.kind, "location_request");
   });
 
   it("stays quiet on a voice note while the safety buttons wait, but keeps the transcript", async () => {

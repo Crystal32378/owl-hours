@@ -101,6 +101,19 @@ describe("extractFrame", () => {
     assert.deepEqual(seconds, [5, 1]);
   });
 
+  it("does not return a failed try's partial file when the next try exits 0 without writing", async () => {
+    const output = await framePath();
+
+    await assert.rejects(
+      extractFrame("in.mp4", output, 90, async (args) => {
+        if (secondOf(args) !== 90) return;
+        await writeFile(output, "partial");
+        throw new Error("corrupt stream");
+      }),
+      /no frame/,
+    );
+  });
+
   it("reports ffmpeg's own error when every try fails", async () => {
     await assert.rejects(
       extractFrame("in.mp4", await framePath(), undefined, async () => {

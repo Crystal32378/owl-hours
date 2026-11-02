@@ -2,6 +2,7 @@
 // be tested without the binary; runFfmpeg needs ffmpeg on PATH (or
 // FFMPEG_PATH).
 import { existsSync } from "node:fs";
+import { rm } from "node:fs/promises";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 
@@ -16,7 +17,7 @@ export function extractFrameArgs(input: string, output: string, atSeconds: numbe
 const DEFAULT_FRAME_SECONDS = 1;
 
 // Tries the asked second, then one second in, then the first frame. Past the end of a clip
-// ffmpeg writes no file and still exits 0, so success needs both a clean exit and the file.
+// ffmpeg writes no file and still exits 0, so success needs both a clean exit and a file from this try.
 export async function extractFrame(
   input: string,
   output: string,
@@ -27,6 +28,7 @@ export async function extractFrame(
   let lastError: unknown = null;
   for (const second of seconds) {
     try {
+      await rm(output, { force: true });
       await run(extractFrameArgs(input, output, second));
       if (existsSync(output)) return;
     } catch (error) {
