@@ -484,6 +484,11 @@ const CONTENT_DRAFT_FIELDS = [
   "deleted_at",
 ].join(", ");
 
+// A content_drafts row from a server-side function, as the owner app reads it.
+export function readContentDraft(row: unknown): StoryPackDraftDto {
+  return toContentDraft(contentDraftRow.parse(row));
+}
+
 function toContentDraft(row: ContentDraftRow, canHandoff = false): StoryPackDraftDto {
   return {
     id: row.id,

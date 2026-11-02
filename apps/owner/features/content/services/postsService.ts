@@ -10,6 +10,8 @@ export type PostsClient = {
   // Answers the post as the store now holds it, so callers show its status, never an assumed one.
   savePost(post: PostDraft): Promise<PostDraft>;
   listPosts(): Promise<PostDraft[]>;
+  // Posts an approved post again after a failed attempt; only the live API posts for real.
+  publishPost?(id: ID): Promise<PostDraft>;
   findJob(id: ID): Promise<JobPhotoSource | null>;
   getBusinessName?(): Promise<string>;
 };
@@ -85,6 +87,7 @@ export function createPostsService(
     },
     approve: async (id, options) => {
       const post = await client.findPost(id);
+      if (post?.status === "approved" && client.publishPost) return client.publishPost(id);
       const approved = post
         ? approvePost(post, {
             now: clock(),

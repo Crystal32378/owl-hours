@@ -50,3 +50,36 @@ describe("accountsService isolation", () => {
     assert.deepEqual(mockAccounts, snapshot);
   });
 });
+
+// odd/tasks/owner-meta-publishing.md S2, S4: the demo links and unlinks nothing.
+describe("accountsService in the demo", () => {
+  it("offers neither connecting nor unlinking", async () => {
+    const service = buildService();
+
+    assert.equal(service.canConnect, false);
+    assert.equal(service.canUnlink, false);
+    await assert.rejects(service.getConnectUrl("app"), /live owner API/);
+    await assert.rejects(service.unlink("a1"), /live owner API/);
+  });
+});
+
+describe("accountsService with the live client", () => {
+  it("asks the client for the login link back to the native app and unlinks by id", async () => {
+    const calls: string[] = [];
+    const service = createAccountsService({
+      listAccounts: async () => [],
+      connectUrl: async (returnTo) => {
+        calls.push(`connect ${returnTo}`);
+        return "https://www.facebook.com/v26.0/dialog/oauth";
+      },
+      unlink: async (id) => {
+        calls.push(`unlink ${id}`);
+      },
+    });
+
+    assert.equal(service.canUnlink, true);
+    assert.equal(await service.getConnectUrl("app"), "https://www.facebook.com/v26.0/dialog/oauth");
+    await service.unlink("a1");
+    assert.deepEqual(calls, ["connect app", "unlink a1"]);
+  });
+});

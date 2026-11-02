@@ -19,7 +19,8 @@
       {
         "locationWhenInUsePermission": "Zukki uses your location to place your business on the map, so customers nearby can find you."
       }
-    ]
+    ],
+    "expo-web-browser"
   ],
   "extra": {
     "eas": {

@@ -8,6 +8,8 @@ import { requireOwner, type OwnerEnv } from "../http/auth.ts";
 import { rateLimit } from "../http/rate-limit.ts";
 import { errorResponse, ok, readId, readJson, readQuery } from "../http/respond.ts";
 import * as owner from "../services/owner-service.ts";
+import { metaConnectUrl, unlinkAccount } from "../services/owner-meta.ts";
+import { publishContentDraft } from "../services/owner-publish.ts";
 import type { V1Deps } from "./v1.ts";
 
 const limit = z.coerce.number().int().min(1).max(100).optional();
@@ -22,6 +24,8 @@ const declineBody = z
   // The app's decline button sends no reason; the sheet sends one.
   .object({ reason: z.enum(["busy", "too_far", "not_offered", "other"]).default("other"), note: z.string().trim().max(500).optional() })
   .strict();
+// The native app asks for its own deep link back; anything else returns to the owner web app.
+const connectUrlQuery = z.object({ return: z.enum(["web", "app"]).default("web") });
 const messagesQuery = z.object({ before: isoTime.optional(), limit: z.coerce.number().int().min(1).max(200).optional() });
 const quoteBody = z
   .object({
@@ -250,10 +254,19 @@ export function ownerRoutes(deps: V1Deps): Hono<OwnerEnv> {
     return ok(c, await owner.reviewContentDraft(c.get("session"), id, body));
   });
 
+  // Posts an approved Story Pack to its linked Page and Instagram account (the owner app calls it after review).
+  app.post("/content/drafts/:id/publish", async (c) =>
+    ok(c, await publishContentDraft(c.get("session"), readId(c), deps)));
+
   app.post("/content/drafts/:id/handoff", async (c) =>
     ok(c, await owner.handoffContentDraft(c.get("session"), readId(c))));
 
   app.get("/linked-accounts", async (c) => ok(c, await owner.listLinkedAccounts(c.get("session"))));
+  app.delete("/linked-accounts/:id", async (c) => ok(c, await unlinkAccount(c.get("session"), readId(c))));
+  app.get("/meta/connect-url", async (c) => {
+    const query = readQuery(c, connectUrlQuery);
+    return ok(c, await metaConnectUrl(c.get("session"), deps, query.return));
+  });
 
   app.post("/test-zukki", async (c) => {
     const body = await readJson(c, testZukkiBody);

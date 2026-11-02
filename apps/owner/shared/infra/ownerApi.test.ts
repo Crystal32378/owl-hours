@@ -73,3 +73,14 @@ test('patch and put send a JSON body with their own method', async () => {
     ['https://api.example.com/v1/owner/business/prices', 'PUT', '{"prices":[]}'],
   ]);
 });
+
+test('delete sends no body and returns the unwrapped data', async () => {
+  const { fetch, calls } = answering(200, { success: true, data: { id: 'a1' } });
+  const api = createOwnerApi({ apiUrl: 'https://api.example.com', getAccessToken: async () => 'tok', fetch });
+
+  assert.deepEqual(await api.delete('/linked-accounts/a1'), { id: 'a1' });
+  assert.equal(calls[0].url, 'https://api.example.com/v1/owner/linked-accounts/a1');
+  assert.equal(calls[0].init.method, 'DELETE');
+  assert.deepEqual(calls[0].init.headers, { Authorization: 'Bearer tok' });
+  assert.equal(calls[0].init.body, undefined);
+});

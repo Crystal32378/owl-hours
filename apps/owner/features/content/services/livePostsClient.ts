@@ -12,9 +12,10 @@ import { localTimestamp } from "../../../shared/lib/localIsoString.ts";
 import type { JobPhotoSource } from "../lib/jobPhotos.ts";
 import type { PostsClient } from "./postsService.ts";
 
-// PostsClient over GET /content/drafts and POST /content/drafts/:id/review (S1-S3, S5).
-// Reads come from the drafts list (the API has no single-draft route); saving an approved post
-// calls the review endpoint with the API's approval snapshot and answers the status the API returns.
+// PostsClient over GET /content/drafts, POST /content/drafts/:id/review and /publish (S1-S5;
+// odd/tasks/owner-meta-publishing.md S3, S4). Reads come from the drafts list (the API has no
+// single-draft route); saving an approved post calls the review endpoint with the API's approval
+// snapshot, then posts it, and answers the status the API returns: published only once posted.
 export function createLivePostsClient(api: OwnerEditApi): PostsClient {
   const draftsById = new Map<ID, StoryPackDraftDto>();
 
@@ -56,7 +57,14 @@ export function createLivePostsClient(api: OwnerEditApi): PostsClient {
     const review = post.status === "rejected" ? { approve: false } : await approval(draft);
     const updated = storyPackDraftSchema.parse(await api.post(reviewPath(post.id), storyPackReviewSchema.parse(review)));
     draftsById.set(updated.id, updated);
-    return toPostDraft(updated);
+    return updated.status === "approved" ? publishPost(updated.id) : toPostDraft(updated);
+  }
+
+  // A failure rejects with the API's message and leaves the post approved, ready for a retry.
+  async function publishPost(id: ID): Promise<PostDraft> {
+    const published = storyPackDraftSchema.parse(await api.post(`${draftPath(id)}/publish`));
+    draftsById.set(published.id, published);
+    return toPostDraft(published);
   }
 
   // The review approves the stored draft, so the owner's caption and platforms are saved first.
@@ -82,6 +90,8 @@ export function createLivePostsClient(api: OwnerEditApi): PostsClient {
     },
 
     savePost: (post) => saveReviewedPost(post),
+
+    publishPost,
 
     // A content source is a finished, consented job: its signed before/after photos feed the review screen.
     findJob: async (id) => {

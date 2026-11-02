@@ -35,6 +35,8 @@ export default function PostReviewScreen(props: {
   jobPhotos: ResolvedJobPhotos | null;
   canApprove: boolean;
   canRegenerate: boolean;
+  isPosting: boolean;
+  approveError: string | null;
   insets: { top: number; bottom: number };
   onBack: () => Promise<void>;
   onEditToggle: () => Promise<void>;
@@ -56,6 +58,8 @@ export default function PostReviewScreen(props: {
     jobPhotos,
     canApprove,
     canRegenerate,
+    isPosting,
+    approveError,
   } = props;
 
   const beforeSrc = photoSource(jobPhotos?.photos.before, contentImages.photoMap, contentImages.bathLeak);
@@ -225,6 +229,10 @@ export default function PostReviewScreen(props: {
           </Card>
         </div>
 
+        {approveError && (
+          <Text style={{ fontSize: 15, color: 'var(--color-error)', padding: '0 16px 12px' }}>{approveError}</Text>
+        )}
+
         {/* Footer actions */}
         <div
           style={{
@@ -250,6 +258,7 @@ export default function PostReviewScreen(props: {
             variant="primary"
             size="lg"
             isDisabled={!canApprove}
+            isLoading={isPosting}
             onClick={() => void props.onApprove()}
           />
         </div>

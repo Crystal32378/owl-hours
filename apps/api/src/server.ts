@@ -23,6 +23,9 @@ function main(): void {
   if ("unavailable" in live.v1) {
     console.warn(`v1 API disabled (every /v1 call returns 503): ${live.v1.unavailable}`);
   }
+  if (!("unavailable" in live.v1) && live.v1.meta && "unavailable" in live.v1.meta) {
+    console.warn(`Facebook and Instagram disabled (linking and posting return 503): ${live.v1.meta.unavailable}`);
+  }
   if ("unavailable" in live.whatsapp) {
     console.warn(`WhatsApp disabled (webhook returns 503, nothing is sent): ${live.whatsapp.unavailable}`);
   }

@@ -63,6 +63,8 @@ type FakeState = {
   sources: Record<string, unknown>[];
   failDrafts?: boolean;
   failReview?: boolean;
+  // The API's answer to POST /content/drafts/:id/publish when posting fails.
+  publishError?: { status: number; code: string; message: string };
 };
 
 function fakeContentApi(state: FakeState) {
@@ -97,6 +99,17 @@ function fakeContentApi(state: FakeState) {
       const draft = state.drafts.find((row) => row.id === id);
       if (!draft) return Response.json({ success: false, error: { code: "not_found", message: "Not found." } }, { status: 404 });
       Object.assign(draft, { status: "approved", reviewedAt: "2026-10-28T05:08:00+00:00" });
+      return Response.json({ success: true, data: draft });
+    }
+    const publishMatch = method === "POST" && /^\/content\/drafts\/[^/]+\/publish$/.test(path);
+    if (publishMatch) {
+      const { publishError } = state;
+      if (publishError) {
+        return Response.json({ success: false, error: { code: publishError.code, message: publishError.message } }, { status: publishError.status });
+      }
+      const draft = state.drafts.find((row) => row.id === decodeURIComponent(path.split("/")[3] ?? ""));
+      if (!draft) return Response.json({ success: false, error: { code: "not_found", message: "Not found." } }, { status: 404 });
+      Object.assign(draft, { status: "published", publishedAt: "2026-10-28T05:09:00+00:00" });
       return Response.json({ success: true, data: draft });
     }
     return Response.json({ success: false, error: { code: "not_found", message: "Not found." } }, { status: 404 });
@@ -177,9 +190,9 @@ describe("live posts client: S3 approves through the review endpoint", () => {
     });
     storyPackReviewSchema.parse(reviewCall?.body);
 
-    assert.equal(approved?.status, "approved");
+    assert.equal(approved?.status, "published");
     assert.deepEqual((await service.getDrafts()).map((draft) => draft.id), [SECOND_ID]);
-    assert.equal((await service.getPost(DRAFT_ID))?.status, "approved");
+    assert.equal((await service.getPost(DRAFT_ID))?.status, "published");
   });
 
   it("saves the owner's caption and platforms before approving, so the API approves what the owner sees", async () => {
@@ -192,6 +205,7 @@ describe("live posts client: S3 approves through the review endpoint", () => {
     assert.deepEqual(writes.map(({ method, url }) => `${method} ${url.replace(`${API}/v1/owner`, "")}`), [
       `PATCH /content/drafts/${DRAFT_ID}`,
       `POST /content/drafts/${DRAFT_ID}/review`,
+      `POST /content/drafts/${DRAFT_ID}/publish`,
     ]);
     assert.deepEqual(writes[0]?.body, { caption: "Same-night repairs.", platforms: ["facebook_page"], expectedUpdatedAt: UPDATED_AT });
     assert.equal((writes[1]?.body as { expectedUpdatedAt: string }).expectedUpdatedAt, EDITED_AT);
@@ -206,16 +220,15 @@ describe("live posts client: S3 approves through the review endpoint", () => {
     assert.equal(calls.filter(({ method }) => method === "PATCH").length, 0);
   });
 
-  it("shows the API's status after approve: a draft with no time is approved, never published", async () => {
+  it("shows Published only after the publish endpoint confirms the post", async () => {
     const { client } = fakeContentApi({ drafts: [draftRow({ scheduledAt: null })], sources: [sourceRow()] });
     const service = createPostsService(client, { now: () => "2026-10-28T00:07:00-05:00" });
 
-    const approved = await service.approve(DRAFT_ID);
+    const posted = await service.approve(DRAFT_ID);
 
-    assert.equal(approved?.status, "approved");
-    assert.equal(approved?.publishedAt, undefined);
-    assert.deepEqual(await service.getPublished(), []);
-    assert.deepEqual((await service.getScheduled()).map((post) => post.status), ["approved"]);
+    assert.equal(posted?.status, "published");
+    assert.equal(posted?.publishedAt, "2026-10-28T00:09:00-05:00");
+    assert.deepEqual((await service.getPublished()).map((post) => post.id), [DRAFT_ID]);
   });
 
   it("shows published only when the API says published", async () => {
@@ -226,6 +239,35 @@ describe("live posts client: S3 approves through the review endpoint", () => {
     const service = createPostsService(client);
 
     assert.deepEqual((await service.getPublished()).map((post) => post.status), ["published"]);
+  });
+});
+
+describe("live posts client: Approve and post (odd/tasks/owner-meta-publishing.md S3, S4)", () => {
+  const instagramFailed = {
+    status: 502,
+    code: "publish_failed",
+    message: "Facebook: posted. Instagram: The media is not ready for publishing. The post stays approved; try again to post the rest.",
+  };
+
+  it("rejects with the API's message when posting fails, and the post stays approved, never Published", async () => {
+    const { client } = fakeContentApi({ drafts: [draftRow()], sources: [sourceRow()], publishError: instagramFailed });
+    const service = createPostsService(client, { now: () => "2026-10-28T00:07:00-05:00" });
+
+    await assert.rejects(service.approve(DRAFT_ID), /Instagram: The media is not ready for publishing/);
+
+    assert.equal((await service.getPost(DRAFT_ID))?.status, "approved");
+    assert.deepEqual(await service.getPublished(), []);
+  });
+
+  it("retries an approved post by posting it again, without a second review", async () => {
+    const { client, calls } = fakeContentApi({ drafts: [draftRow({ status: "approved" })], sources: [sourceRow()] });
+    const service = createPostsService(client, { now: () => "2026-10-28T00:07:00-05:00" });
+
+    const posted = await service.approve(DRAFT_ID);
+
+    assert.equal(posted?.status, "published");
+    assert.deepEqual(calls.filter(({ method }) => method !== "GET").map(({ method, url }) => `${method} ${url.replace(`${API}/v1/owner`, "")}`),
+      [`POST /content/drafts/${DRAFT_ID}/publish`]);
   });
 });
 
