@@ -25,6 +25,7 @@ docker info >/dev/null 2>&1 || { echo "Docker is not running" >&2; exit 1; }
 cd "$root"
 echo "Starting local Supabase (the first run downloads its images)..."
 npx supabase start >/dev/null
+npx supabase migration up --local >/dev/null
 eval "$(npx supabase status -o env 2>/dev/null | grep -E '^(API_URL|ANON_KEY|SERVICE_ROLE_KEY|MAILPIT_URL)=')"
 
 models_note="live: this run calls Meta with your key"

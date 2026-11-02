@@ -14,6 +14,7 @@ Objective: anyone can run the customer flow from a clean clone, and our e2e flow
 - S5. The e2e proves the data is not static: different media give different readings, and a rejected Meta key produces no reading.
 - S6. Without a Meta key the run replays answers recorded from real runs, and says so in the log. It must never pass as live. With a key it calls Meta.
 - S7. The judge command never overwrites a developer's `apps/api/.env.local` or `apps/owner/.env.local`.
+- S8. Found by the judge run: an expired or declined request makes `GET /v1/owner/offers` answer 500 and the Requests tab shows "Something went wrong." The card must exist without customer data.
 
 ## Tasks
 
