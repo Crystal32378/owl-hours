@@ -25,9 +25,12 @@ docker info >/dev/null 2>&1 || { echo "Docker is not running" >&2; exit 1; }
 cd "$root"
 echo "Starting local Supabase (the first run downloads its images)..."
 npx supabase start >/dev/null
+npx supabase migration up --local >/dev/null
+bash scripts/local/seed-content-demo.sh >/dev/null
 eval "$(npx supabase status -o env 2>/dev/null | grep -E '^(API_URL|ANON_KEY|SERVICE_ROLE_KEY|MAILPIT_URL)=')"
 
 models_note="live: this run calls Meta with your key"
+unset META_MODEL_BASE_URL
 if [ -z "${META_MODEL_API_KEY:-}" ]; then
   models_note="REPLAY: answers recorded from real runs, only for the sample video and the demo script"
   export META_MODEL_API_KEY="no-key-this-run-replays-recordings"
@@ -40,20 +43,15 @@ export WHATSAPP_ACCESS_TOKEN="fake-$(openssl rand -hex 16)"
 export WHATSAPP_PHONE_NUMBER_ID="100000000000001"
 export WHATSAPP_VERIFY_TOKEN="fake-$(openssl rand -hex 16)"
 export META_APP_SECRET="fake-$(openssl rand -hex 16)"
-cat > "$run_dir/api.env" <<ENV
-WHATSAPP_GRAPH_HOST=http://127.0.0.1:4010
-SUPABASE_URL=$API_URL
-SUPABASE_ANON_KEY=$ANON_KEY
-SUPABASE_SERVICE_ROLE_KEY=$SERVICE_ROLE_KEY
-ZUKKI_SERVER_KEY=$(openssl rand -hex 32)
-OWNER_APP_ORIGINS=http://localhost:8081
-OWNER_PUBLIC_ORIGIN=http://localhost:8081
-PORT=3000
-ENV
+# Exported, so they win over anything this shell already has set.
+export WHATSAPP_GRAPH_HOST="http://127.0.0.1:4010"
+export SUPABASE_URL="$API_URL" SUPABASE_ANON_KEY="$ANON_KEY" SUPABASE_SERVICE_ROLE_KEY="$SERVICE_ROLE_KEY"
+export ZUKKI_SERVER_KEY="$(openssl rand -hex 32)"
+export OWNER_APP_ORIGINS="http://localhost:8081" OWNER_PUBLIC_ORIGIN="http://localhost:8081" PORT=3000
 
 node scripts/local/fake-whatsapp.mjs > "$run_dir/whatsapp.log" 2>&1 &
 pids+=($!)
-(cd apps/api && exec node --env-file="$run_dir/api.env" src/server.ts) &
+(cd apps/api && exec node src/server.ts) > "$run_dir/api.log" 2>&1 &
 pids+=($!)
 echo "Building the owner app..."
 (cd apps/owner && CI=1 EXPO_PUBLIC_API_URL=http://localhost:3000 EXPO_PUBLIC_SUPABASE_URL="$API_URL" \
@@ -77,11 +75,20 @@ for url in http://localhost:3000/health http://127.0.0.1:4010/sent http://localh
 done
 
 echo; echo "A customer sends a leak video:"
-node scripts/e2e/demo-customer.mjs
+node scripts/e2e/demo-customer.mjs || {
+  echo "The demo customer failed. Last lines of the API log:" >&2
+  tail -n 30 "$run_dir/api.log" >&2
+  exit 1
+}
+if [ -z "${META_MODEL_BASE_URL:-}" ]; then
+  echo; echo "Checking that replies come from the models (two different media):"
+  node scripts/e2e/media-flow.mjs
+fi
 
 cat <<INFO
 
 Everything is running. Models: $models_note
+API log: $run_dir/api.log (removed when this stops)
 
   Customer's messages   http://127.0.0.1:4010
   Owner app             http://localhost:8081

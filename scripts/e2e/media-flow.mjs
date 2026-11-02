@@ -10,9 +10,9 @@ import { promisify } from 'node:util';
 import { join } from 'node:path';
 
 const [apiUrl = 'http://localhost:3000', fakeUrl = 'http://127.0.0.1:4010'] = process.argv.slice(2);
-const VIDEO = process.env.VIDEO ?? 'lavabo.mp4';
+const VIDEO = process.env.VIDEO ?? 'under-sink-leak.mp4';
 const VIDEO_CAPTION = process.env.VIDEO_CAPTION ?? 'Se está saliendo el agua del lavabo y ya está llegando al piso';
-const SECOND_IMAGE = process.env.SECOND_IMAGE ?? 'electrical.jpg';
+const SECOND_IMAGE = process.env.SECOND_IMAGE ?? 'burnt-outlet.jpg';
 const SECOND_CAPTION = process.env.SECOND_CAPTION ?? 'Este contacto huele a quemado';
 const READING_TIMEOUT_MS = 150_000;
 const POLL_MS = 2_000;
@@ -23,6 +23,8 @@ const LOOKING = /looking at what you sent/i;
 const FAILED = /something went wrong/i;
 const run = promisify(execFile);
 
+await assertFakeServes(VIDEO);
+await assertFakeServes(SECOND_IMAGE);
 const first = await customerSends('video', VIDEO, VIDEO_CAPTION);
 if (process.env.EXPECT_NO_READING) {
   assert.equal(first.reading, undefined, `expected no reading with a rejected key, got: ${first.reading}`);
@@ -36,6 +38,12 @@ assert.notEqual(first.reading, second.reading, 'two different media got the same
 console.log('PASS video reading:', first.reading);
 console.log('PASS photo reading:', second.reading);
 console.log(first.markedFrame ? `PASS marked frame sent: ${first.markedFrame.slice(0, 80)}...` : 'NOTE no valve marked on the video');
+
+// Missing media also gets no reading, which would prove nothing.
+async function assertFakeServes(mediaId) {
+  const response = await fetch(`${fakeUrl}/v23.0/${mediaId}`);
+  assert.equal(response.status, 200, `the fake WhatsApp cannot serve ${mediaId}`);
+}
 
 async function customerSends(kind, mediaId, caption) {
   const waId = `5215550${String(Math.floor(Math.random() * 1e6)).padStart(6, '0')}`;

@@ -18,7 +18,7 @@ const copys = {
   sendQuote: "Send quote",
   minimum: "minimum",
   maximum: "maximum",
-  approvalNotice: (firstName: string) => `${firstName} approves it in WhatsApp. Nothing is booked until she does.`,
+  approvalNotice: (firstName: string) => `${firstName} approves it in WhatsApp. Nothing is booked until they do.`,
   // job detail
   jobTitleBar: "Job",
   viaZukki: "via Zukki",
@@ -51,7 +51,7 @@ const copys = {
   after: "After",
   addPhoto: "Add",
   total: "Total",
-  sharePhotosHint: "For posts. Only used if she says yes.",
+  sharePhotosHint: "For posts. Only used if they say yes.",
   markAsDone: "Mark as done",
   confirmFinalPrice: (firstName: string) =>
     `Confirm the final price. Zukki sends ${firstName} the receipt and asks for a review on WhatsApp.`,

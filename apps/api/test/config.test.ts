@@ -22,7 +22,7 @@ describe("loadWhatsAppConfig", () => {
     assert.equal(loadWhatsAppConfig(env).graphHost, undefined);
     assert.equal(loadWhatsAppConfig({ ...env, WHATSAPP_GRAPH_HOST: "http://127.0.0.1:4010/" }).graphHost, "http://127.0.0.1:4010");
     assert.equal(loadWhatsAppConfig({ ...env, WHATSAPP_GRAPH_HOST: "http://localhost:4010" }).graphHost, "http://localhost:4010");
-    for (const host of ["https://evil.example", "http://127.0.0.1.evil.example", "http://localhost@evil.example"]) {
+    for (const host of ["https://evil.example", "http://127.0.0.1.evil.example", "http://localhost@evil.example", "http://user:evil@127.0.0.1:4010", "ftp://127.0.0.1", "foo://localhost/evil", "evil not a url"]) {
       assert.throws(
         () => loadWhatsAppConfig({ ...env, WHATSAPP_GRAPH_HOST: host }),
         (error: unknown) => {

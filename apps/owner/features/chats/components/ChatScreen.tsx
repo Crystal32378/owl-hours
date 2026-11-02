@@ -37,6 +37,7 @@ import type { PolishChoice } from '../lib/ownerDelivery.ts';
 import type { QuoteCard } from '../lib/quoteCard.ts';
 import { chatsCopys } from '../copys/chatsCopys';
 import { arrivedOwnMessage } from '../lib/followLatest.ts';
+import { messageWithJobLink } from '../lib/jobLink.ts';
 import { SuggestionRow } from './SuggestionRow';
 
 export default function ChatScreen(props: {
@@ -62,6 +63,7 @@ export default function ChatScreen(props: {
   dom?: DOMProps;
 }) {
   const { insets } = props;
+  const jobLinkMessageId = messageWithJobLink(props.thread);
   return (
     <Theme theme={neutralTheme}>
       <div className="zukki-root" style={{ ...pageStyle, paddingTop: insets.top, paddingBottom: insets.bottom }}>
@@ -72,7 +74,7 @@ export default function ChatScreen(props: {
               <ChatSystemMessage>{chatsCopys.youAcceptedAt} {formatClockTime(props.acceptedAt)}</ChatSystemMessage>
             )}
             {props.thread.map((message) => (
-              <ThreadEntry key={message.id} message={message} onOpenJob={props.hasJob ? props.onOpenJob : null} />
+              <ThreadEntry key={message.id} message={message} onOpenJob={props.hasJob && message.id === jobLinkMessageId ? props.onOpenJob : null} />
             ))}
           </ChatMessageList>
           <FollowOwnMessages thread={props.thread} />

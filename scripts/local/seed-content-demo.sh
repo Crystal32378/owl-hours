@@ -17,5 +17,6 @@ for photo in sink-before sink-after; do
     --data-binary "@scripts/local/content-demo/$photo.jpg"
 done
 
-psql "$DB_URL" -v ON_ERROR_STOP=1 -q -f supabase/seeds/content-demo.sql
+# Through the database container, so a machine with only Docker can run this.
+docker exec -i supabase_db_owl-hours psql -U postgres -v ON_ERROR_STOP=1 -q < supabase/seeds/content-demo.sql
 echo "Content demo ready: one finished job with before/after photos and one draft to review."

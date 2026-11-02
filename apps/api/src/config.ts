@@ -8,8 +8,14 @@ const LOOPBACK_HOSTNAMES = ["127.0.0.1", "localhost"];
 // travels with every request.
 const loopbackUrl = z.preprocess(
   (value) => (value === "" ? undefined : value),
-  z.string().url().refine((url) => LOOPBACK_HOSTNAMES.includes(new URL(url).hostname)).optional(),
+  z.string().url().refine(isPlainLoopbackUrl).optional(),
 );
+
+function isPlainLoopbackUrl(url: string): boolean {
+  if (!URL.canParse(url)) return false;
+  const { protocol, hostname, username, password } = new URL(url);
+  return ["http:", "https:"].includes(protocol) && LOOPBACK_HOSTNAMES.includes(hostname) && !username && !password;
+}
 
 const envSchema = z.object({
   META_MODEL_API_KEY: z.string().min(1),

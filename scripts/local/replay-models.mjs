@@ -16,6 +16,9 @@ const PORT = Number(process.env.REPLAY_PORT ?? 4011);
 const FILE = process.env.REPLAY_FILE ?? join(import.meta.dirname, 'recordings', 'demo.json');
 const recordings = MODE === 'record' ? {} : JSON.parse(readFileSync(FILE, 'utf8'));
 const served = new Map();
+// Only the sample media has recordings. A frame's bytes can change between ffmpeg builds, so frames
+// cannot be matched themselves: they are answered only right after the triage knew the media.
+let lastMediaKnown = false;
 
 createServer((request, response) => {
   answer(request, response).catch((error) => send(response, 502, 'application/json', errorBody(error.message)));
@@ -28,7 +31,8 @@ async function answer(request, response) {
   const path = new URL(request.url, 'http://local').pathname.replace(/^\/v1/, '');
   const key = requestKey(path, body);
   if (MODE === 'record') return forwardAndKeep(request, response, path, body, key);
-  const recording = nextRecording(key);
+  const recording = isForUnknownMedia(body) ? undefined : nextRecording(key);
+  if (isTriage(body)) lastMediaKnown = Boolean(recording);
   if (!recording) {
     console.warn(`no recording for ${path}: refusing to invent an answer`);
     return send(response, 503, 'application/json', errorBody('No recorded answer for this request. Set META_MODEL_API_KEY to call the real models.'));
@@ -41,7 +45,7 @@ async function answer(request, response) {
 // must not get this one's reading.
 function requestKey(path, body) {
   const text = body.toString('utf8');
-  const media = /"name":"media_triage"/.test(text) ? hashOf(text.match(/data:[^"]+/)?.[0] ?? '') : '';
+  const media = isTriage(body) ? hashOf(text.match(/data:[^"]+/)?.[0] ?? '') : '';
   const stable = text
     .replace(/data:[^"]+/g, '<media>')
     .replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g, '<id>')
@@ -49,12 +53,21 @@ function requestKey(path, body) {
   return `${path} ${media} ${hashOf(stable)}`;
 }
 
+function isTriage(body) {
+  return body.includes('"name":"media_triage"');
+}
+
+function isForUnknownMedia(body) {
+  return !isTriage(body) && !lastMediaKnown && body.includes('"data:');
+}
+
 function nextRecording(key) {
   const answers = recordings[key];
   if (!answers) return undefined;
   const turn = served.get(key) ?? 0;
   served.set(key, turn + 1);
-  return answers[Math.min(turn, answers.length - 1)];
+  // In a cycle, so every customer of a run gets the same answers as the first.
+  return answers[turn % answers.length];
 }
 
 async function forwardAndKeep(request, response, path, body, key) {
