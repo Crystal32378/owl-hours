@@ -17,7 +17,7 @@ import { Check, Pencil } from 'lucide-react';
 import type { ExtraFee, PriceItem } from '../../../shared/data/types';
 import { onboardingCopys } from '../copys/onboardingCopys';
 import { completePrices } from '../lib/priceDraft';
-import { feeAmountText, feeLabelText, priceAmountText } from '../lib/priceText';
+import { feeAmountText, feeLabelText, priceAmountText, pricesLead } from '../lib/priceText';
 import OnboardingFrame from './OnboardingFrame';
 import SetupStepHeader from './SetupStepHeader';
 import ZukkiSays from './ZukkiSays';
@@ -46,7 +46,7 @@ export default function PricesScreen(props: {
     >
       <SetupStepHeader step={2} />
       <Heading level={1}>{onboardingCopys.pricesTitle}</Heading>
-      <ZukkiSays owl="running" text={onboardingCopys.pricesLead} tone="card" />
+      <ZukkiSays owl="running" text={pricesLead(props.prices)} tone="card" />
       <Card padding={2}>
         {draft.map((price) =>
           editingId === price.id ? (

@@ -2,7 +2,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { business } from "../../../shared/data/mock.ts";
-import { feeAmountText, feeLabelText, priceAmountText, radiusText } from "./priceText.ts";
+import { feeAmountText, feeLabelText, priceAmountText, pricesLead, radiusText } from "./priceText.ts";
 
 describe("priceAmountText", () => {
   it("renders flat and from-prices", () => {
@@ -25,5 +25,17 @@ describe("fee rows", () => {
 describe("radiusText", () => {
   it("renders the radius with its unit", () => {
     assert.equal(radiusText(5), "5 km");
+  });
+});
+
+// Spec: odd/tasks/owner-area-map-fees-dark.md, T1, S3. The owl only claims a website
+// import when there are prices to show; live onboarding imports nothing.
+describe("pricesLead", () => {
+  it("S3 says the prices came from the website when there are prices", () => {
+    assert.equal(pricesLead(business.prices), "I found these on your website. Check them before customers see them.");
+  });
+
+  it("S3 asks for prices without claiming an import when nothing was imported", () => {
+    assert.equal(pricesLead([]), "Add your prices so customers know what you charge.");
   });
 });
