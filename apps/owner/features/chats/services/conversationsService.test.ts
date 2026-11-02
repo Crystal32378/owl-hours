@@ -79,6 +79,12 @@ describe("conversationsService.sendMessage with polish off (option A)", () => {
 });
 
 describe("conversationsService.sendMessage with polish on (option B)", () => {
+  it("in the demo, does not greet twice", async () => {
+    const result = await buildService().sendMessage("c_ana", "hi ana, mario ya va", { polish: true });
+
+    assert.equal(result && "polished" in result ? result.polished : null, "Hi ana, mario ya va.");
+  });
+
   it("in the demo, gives any other message a greeting and tidy punctuation", async () => {
     const result = await buildService().sendMessage("c_ana", "mario ya va llega en 40", { polish: true });
 

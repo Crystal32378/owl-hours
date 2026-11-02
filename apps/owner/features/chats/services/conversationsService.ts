@@ -112,7 +112,8 @@ function politeDemoText(text: string, customerName: string | undefined): string 
   const trimmed = text.trim();
   const sentence = trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
   const ending = /[.!?]$/.test(sentence) ? "" : ".";
-  return customerName ? `Hi ${firstName(customerName)}, ${sentence}${ending}` : `${sentence}${ending}`;
+  const isGreeted = /^(hi|hello|hola)\b/i.test(trimmed);
+  return customerName && !isGreeted ? `Hi ${firstName(customerName)}, ${sentence}${ending}` : `${sentence}${ending}`;
 }
 
 // Zukki suggests the quote of the offer behind a conversation, but only when that conversation has a job.

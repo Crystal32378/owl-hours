@@ -76,6 +76,7 @@ export function createPostsService(
       return posts.filter((p) => p.status === "draft");
     },
     getDraft: async (id) => {
+      regeneratedIds.delete(id);
       const post = await client.findPost(id);
       return post?.status === "draft" ? post : null;
     },

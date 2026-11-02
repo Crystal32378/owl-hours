@@ -142,6 +142,16 @@ describe("postsService.regenerate", () => {
     assert.equal(second?.caption, original);
   });
 
+  it("in the demo, reopening a draft starts Regenerate over, because the swapped caption is not saved", async () => {
+    const service = buildService();
+    const original = (await service.getDraft("post_91"))?.caption;
+    await service.regenerate("post_91");
+
+    await service.getDraft("post_91");
+
+    assert.notEqual((await service.regenerate("post_91"))?.caption, original);
+  });
+
   it("gives every demo draft a caption to review", async () => {
     const drafts = await buildService().getDrafts();
 

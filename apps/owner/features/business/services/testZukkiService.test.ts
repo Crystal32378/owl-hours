@@ -69,6 +69,17 @@ describe("testZukki demo fake (S6: the two design exchanges, verbatim)", () => {
     });
   }
 
+  it("gives the visit price without promising a service nobody named", async () => {
+    const session = createTestZukkiSession(createFakeTestZukkiClient());
+    session.setDraft("How much does it cost to fix my car?");
+
+    await session.ask();
+
+    const answer = lastTurnOf(session).answer;
+    assert.equal(answer?.text, "A visit from Northside Plumbing is $45. Tell me what needs fixing and I'll give you its price.");
+    assert.deepEqual(answer?.sources, ["Visit"]);
+  });
+
   it("still says a service it does not offer is not offered", async () => {
     const session = createTestZukkiSession(createFakeTestZukkiClient());
     session.setDraft("Can you fix my car?");
