@@ -29,6 +29,7 @@ export default function BusinessScreen(props: {
   rows: BusinessRowValues;
   insets: { top: number; bottom: number };
   onOpenPrices: () => Promise<void>;
+  onOpenHours: () => Promise<void>;
   onOpenSettings: () => Promise<void>;
   onTestZukki: () => Promise<void>;
   dom?: DOMProps;
@@ -72,7 +73,12 @@ export default function BusinessScreen(props: {
                 endContent={<RowChevron />}
                 onClick={() => props.onOpenPrices()}
               />
-              <ListItem label={businessCopys.hoursRow} description={<RowValue text={rows.hours} />} />
+              <ListItem
+                label={businessCopys.hoursRow}
+                description={<RowValue text={rows.hours} />}
+                endContent={<RowChevron />}
+                onClick={() => props.onOpenHours()}
+              />
               <ListItem
                 label={businessCopys.serviceAreaRow}
                 description={

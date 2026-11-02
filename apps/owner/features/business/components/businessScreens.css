@@ -23,6 +23,13 @@
   min-width: 0;
 }
 
+/* Hours editor: opening and closing time side by side under the day's switch. */
+.zukki-hours-times {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
 /* Business logo: the Northside mark, as in OwBusiness.dc.html. */
 .zukki-logo {
   width: 52px;

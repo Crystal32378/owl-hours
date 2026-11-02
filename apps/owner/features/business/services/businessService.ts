@@ -3,6 +3,7 @@ import type { Business, FeeInput, LinkedAccount, PriceItem } from "../../../shar
 import type { BusinessRowExtras } from "../lib/businessRows.ts";
 import { BUSINESS_DEMO } from "../lib/businessRows.ts";
 import { isCompleteFee, withSavedFees } from "../lib/feeDraft.ts";
+import { hoursSummary, type OpeningHours } from "../lib/hoursSummary.ts";
 import { isValidPrice } from "../lib/priceValidation.ts";
 
 // The settings switches of OwSettings. Field names are the coder's;
@@ -21,6 +22,8 @@ export type BusinessClient = {
   loadBusiness: () => Promise<Business>;
   storePrices: (prices: PriceItem[]) => Promise<Business>;
   storeFees: (fees: FeeInput[]) => Promise<Business>;
+  loadHours: () => Promise<OpeningHours[]>;
+  storeHours: (hours: OpeningHours[]) => Promise<OpeningHours[]>;
   loadSettings: () => Promise<BusinessSettings>;
   storeSettings: (settings: BusinessSettings) => Promise<BusinessSettings>;
   loadAccounts: () => Promise<LinkedAccount[]>;
@@ -31,6 +34,8 @@ export type BusinessService = {
   getBusiness: () => Promise<Business>;
   savePrices: (prices: PriceItem[]) => Promise<Business | null>;
   saveFees: (fees: FeeInput[]) => Promise<Business | null>;
+  getHours: () => Promise<OpeningHours[]>;
+  saveHours: (hours: OpeningHours[]) => Promise<OpeningHours[] | null>;
   getSettings: () => Promise<BusinessSettings>;
   saveSettings: (settings: BusinessSettings) => Promise<BusinessSettings>;
   getAccounts: () => Promise<LinkedAccount[]>;
@@ -42,6 +47,8 @@ export function createBusinessService(client: BusinessClient): BusinessService {
     getBusiness: () => client.loadBusiness(),
     savePrices: (prices) => saveValidPrices(client, prices),
     saveFees: (fees) => saveCompleteFees(client, fees),
+    getHours: () => client.loadHours(),
+    saveHours: (hours) => saveValidHours(client, hours),
     getSettings: () => client.loadSettings(),
     saveSettings: (settings) => client.storeSettings({ ...settings }),
     getAccounts: () => client.loadAccounts(),
@@ -63,6 +70,13 @@ async function saveCompleteFees(client: BusinessClient, fees: FeeInput[]): Promi
   return client.storeFees(structuredClone(fees));
 }
 
+// PUT /business/hours refuses a shift that opens and closes at the same time.
+async function saveValidHours(client: BusinessClient, hours: OpeningHours[]): Promise<OpeningHours[] | null> {
+  if (hours.some((shift) => shift.opens === shift.closes)) return null;
+
+  return client.storeHours(structuredClone(hours));
+}
+
 // Module-level demo service shared by the default deps of useBusiness,
 // usePrices and useSettings: saved prices and toggles survive navigation
 // between the three screens (each hook built its own client before, so edits
@@ -73,6 +87,8 @@ export const demoBusinessService: BusinessService = createBusinessService(create
 // accounts and the feature-local demo values; the shared mock is never touched.
 export function createFakeBusinessClient(): BusinessClient {
   let business = structuredClone(seedBusiness);
+  // The shifts behind the seeded "Mon–Sat, 8 AM–8 PM" summary.
+  let hours: OpeningHours[] = [1, 2, 3, 4, 5, 6].map((weekday) => ({ weekday, opens: "08:00", closes: "20:00" }));
   let settings: BusinessSettings = {
     takingRequests: seedBusiness.takingRequests,
     urgentRequests: true,
@@ -91,6 +107,12 @@ export function createFakeBusinessClient(): BusinessClient {
     storeFees: async (fees) => {
       business = { ...business, fees: withSavedFees(business.fees, fees) };
       return structuredClone(business);
+    },
+    loadHours: async () => structuredClone(hours),
+    storeHours: async (next) => {
+      hours = structuredClone(next);
+      business = { ...business, hours: { ...business.hours, summary: hoursSummary(hours) } };
+      return structuredClone(hours);
     },
     loadSettings: async () => ({ ...settings }),
     storeSettings: async (next) => {

@@ -55,4 +55,15 @@ for _ in $(seq 1 15); do
 done
 [ "$now" != "$taking" ] && say "PASS taking requests: accepts_now $taking -> $now" || { say "FAIL: accepts_now stayed $now"; exit 1; }
 
+say "Hours editor writes PUT /business/hours"
+sundays() { sql "select count(*) from business_hours where tenant_id='$NORTHSIDE' and weekday=0"; }
+sql "delete from business_hours where tenant_id='$NORTHSIDE' and weekday=0" >/dev/null
+maestro_run live/open-sunday-hours.yaml
+for _ in $(seq 1 15); do
+  [ "$(sundays)" = "1" ] && break
+  sleep 1
+done
+[ "$(sundays)" = "1" ] && say "PASS hours: Sunday stored from the editor" || { say "FAIL: Sunday was not stored"; exit 1; }
+sql "delete from business_hours where tenant_id='$NORTHSIDE' and weekday=0" >/dev/null
+
 say "PASS ($out)"

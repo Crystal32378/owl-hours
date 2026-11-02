@@ -31,6 +31,7 @@ export default function BusinessRoute() {
       rows={view.rows}
       insets={safeInsets}
       onOpenPrices={async () => router.push('/business/prices')}
+      onOpenHours={async () => router.push(`/${businessLinks.hours}`)}
       onOpenSettings={async () => router.push('/settings')}
       onTestZukki={async () => router.push(`/${businessLinks.testZukki}`)}
       dom={domHost}

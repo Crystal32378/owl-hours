@@ -162,3 +162,20 @@ describe("live businessService settings", () => {
     ]);
   });
 });
+
+describe("live businessService hours", () => {
+  it("reads the shifts from GET /business", async () => {
+    const { service, calls } = liveService();
+
+    assert.deepEqual(await service.getHours(), northside.hours);
+    assert.deepEqual(calls.map(({ method, url }) => ({ method, url })), [{ method: "GET", url: `${API_URL}/v1/owner/business` }]);
+  });
+
+  it("saves through PUT /business/hours and answers the stored shifts", async () => {
+    const stored = [{ weekday: 5, opens: "22:00", closes: "04:00" }];
+    const { service, calls } = liveService(() => ok({ ...northside, hours: stored }));
+
+    assert.deepEqual(await service.saveHours(stored), stored);
+    assert.deepEqual(calls, [{ method: "PUT", url: `${API_URL}/v1/owner/business/hours`, body: { hours: stored } }]);
+  });
+});

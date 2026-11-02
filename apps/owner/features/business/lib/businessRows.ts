@@ -65,6 +65,7 @@ function feeText(fee: ExtraFee): string {
 }
 
 function hoursText(business: Business): string {
+  if (business.hours.summary === "") return businessCopys.hoursEmpty;
   if (!business.hours.nightUrgent) return business.hours.summary;
   return `${business.hours.summary} · ${businessCopys.nightUrgent}`;
 }

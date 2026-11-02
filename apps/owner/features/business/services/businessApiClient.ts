@@ -43,6 +43,10 @@ export function createBusinessApiClient(api: OwnerEditApi): BusinessClient {
     return toBusiness((await api.put("/business/fees", { fees: listed })) as ApiBusiness);
   }
 
+  async function putHours(hours: OpeningHours[]): Promise<OpeningHours[]> {
+    return ((await api.put("/business/hours", { hours })) as ApiBusiness).hours;
+  }
+
   async function patchTakingRequests(takingRequests: boolean): Promise<boolean> {
     const saved = (await api.patch("/business", { takingRequests })) as ApiBusiness;
     return saved.takingRequests;
@@ -52,6 +56,8 @@ export function createBusinessApiClient(api: OwnerEditApi): BusinessClient {
     loadBusiness: async () => toBusiness(await readBusiness()),
     storePrices: putPrices,
     storeFees: putFees,
+    loadHours: async () => (await readBusiness()).hours,
+    storeHours: putHours,
     loadSettings: async () => ({ takingRequests: (await readBusiness()).takingRequests }),
     storeSettings: async (settings) => ({ takingRequests: await patchTakingRequests(settings.takingRequests) }),
     loadAccounts: async () => (await readBusiness()).linkedAccounts.map(toLinkedAccount),
