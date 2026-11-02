@@ -8,7 +8,11 @@ export type MoneyRange = { min: Money; max: Money };
 
 // ---------- business (tenant) ----------
 export type PriceItem = { id: ID; label: string; amount: Money; from: boolean };     // from=true → "from $60"
-export type ExtraFee = { id: ID; label: string; amount: Money | "at_cost"; window?: string }; // window: "10 PM–7 AM"
+// window: "10 PM–7 AM". atNight: the night fee the quote adds inside its window
+// (kind night_fee); the demo seed leaves it out and marks night fees by their window.
+export type ExtraFee = { id: ID; label: string; amount: Money | "at_cost"; window?: string; atNight?: boolean };
+// An extra fee as the prices screens edit it and PUT /business/fees saves it.
+export type FeeInput = { id: ID; label: string; amount: Money; atNight: boolean };
 export type Hours = { summary: string; nightUrgent: boolean };                      // "Mon–Sat, 8 AM–8 PM"
 export type ServiceArea = { center: { lat: number; lng: number }; radiusKm: number };
 

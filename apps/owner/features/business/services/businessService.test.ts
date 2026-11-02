@@ -49,6 +49,34 @@ describe("businessService.savePrices", () => {
   }
 });
 
+describe("businessService.saveFees", () => {
+  it("round-trips the demo fees: edited, added and removed fees read back, parts at cost stays", async () => {
+    const service = buildService();
+    const edited = [
+      { id: "f1", label: "Late night", amount: 30, atNight: true },
+      { id: "f-new-1", label: "Holiday", amount: 20, atNight: false },
+    ];
+
+    const saved = await service.saveFees(edited);
+
+    const expected = [
+      { id: "f1", label: "Late night", amount: 30, atNight: true, window: "10 PM–7 AM" },
+      { id: "f-new-1", label: "Holiday", amount: 20, atNight: false },
+      { id: "f3", label: "Parts", amount: "at_cost" },
+    ];
+    assert.deepEqual(saved?.fees, expected);
+    assert.deepEqual((await service.getBusiness()).fees, expected);
+  });
+
+  it("saves nothing for a fee without a name or at $0", async () => {
+    const service = buildService();
+
+    assert.equal(await service.saveFees([{ id: "f1", label: "", amount: 25, atNight: true }]), null);
+    assert.equal(await service.saveFees([{ id: "f1", label: "Night", amount: 0, atNight: true }]), null);
+    assert.deepEqual((await service.getBusiness()).fees, mockBusiness.fees);
+  });
+});
+
 describe("businessService settings", () => {
   it("starts as the OwSettings design shows: on, on, on, off", async () => {
     assert.deepEqual(await buildService().getSettings(), {

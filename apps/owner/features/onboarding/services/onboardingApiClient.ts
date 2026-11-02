@@ -1,8 +1,8 @@
 // The live onboarding steps on the owner API (docs/API.md): the business step creates
-// or updates the caller's business (POST /business), prices and area replace the
-// business's own (PUT /business/prices, PUT /business/area), the night switch is
-// PATCH /business, and fees, the hours summary and whether the business has a real
-// location are read from GET /business. The device location is saved as the area centre.
+// or updates the caller's business (POST /business), prices, fees and area replace the
+// business's own (PUT /business/prices, PUT /business/fees, PUT /business/area), the
+// night switch is PATCH /business, and fees, the hours summary and whether the
+// business has a real location are read from GET /business. The device location is saved as the area centre.
 // The owner name and the emailed address stay in the given drafts.
 import type { Business } from "../../../shared/data/types.ts";
 import { OwnerApiError } from "../../../shared/infra/ownerApi.ts";
@@ -64,6 +64,9 @@ export function createApiOnboardingClient(api: OwnerEditApi, drafts: OnboardingC
     findLocationStatus,
     saveLocation,
     findFees: async () => (await findBusiness())?.fees ?? [],
+    saveFees: async (fees) => {
+      await business.storeFees(fees);
+    },
     findHoursSummary: async () => (await findBusiness())?.hours.summary ?? "",
   };
 }

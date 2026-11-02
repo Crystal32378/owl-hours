@@ -25,7 +25,10 @@ const northside = {
     { id: "pr-visit", label: "Visit", amount: 45, from: false },
     { id: "pr-leak", label: "Leak repair", amount: 60, from: true },
   ],
-  fees: [{ id: "pr-night", label: "Night fee", amount: 25, window: "10 PM-7 AM" }, { id: "pr-parts", label: "Parts", amount: "at_cost" }],
+  fees: [
+    { id: "pr-night", label: "Night fee", amount: 25, window: "10 PM-7 AM", atNight: true },
+    { id: "pr-parts", label: "Parts", amount: "at_cost", atNight: false },
+  ],
   hours: [1, 2, 3, 4, 5, 6].map((weekday) => ({ weekday, opens: "08:00", closes: "18:00" })),
   nightJobs: true,
   area: { lat: 21.1727, lng: -86.8515, radiusKm: 8 },
@@ -66,7 +69,7 @@ describe("live businessService.getBusiness", () => {
       rating: { value: 4.9, count: 128 },
       technicians: 1,
       prices: northside.prices,
-      fees: [{ id: "pr-night", label: "Night fee", amount: 25, window: "10 PM-7 AM" }, { id: "pr-parts", label: "Parts", amount: "at_cost" }],
+      fees: northside.fees,
       hours: { summary: "Mon–Sat, 8 AM–6 PM", nightUrgent: true },
       area: { center: { lat: 21.1727, lng: -86.8515 }, radiusKm: 8 },
       takingRequests: true,
@@ -105,6 +108,29 @@ describe("live businessService.savePrices", () => {
     const { service, calls } = liveService();
 
     assert.equal(await service.savePrices([{ id: "pr-visit", label: "Visit", amount: 0, from: false }]), null);
+    assert.equal(calls.length, 0);
+  });
+});
+
+describe("live businessService.saveFees", () => {
+  it("puts the edited fees and returns the saved business", async () => {
+    const savedFees = [{ id: "pr-night", label: "Night", amount: 30, window: "10 PM-7 AM", atNight: true }];
+    const { service, calls } = liveService(() => ok({ ...northside, fees: savedFees }));
+    const edited = [
+      { id: "pr-night", label: "Night", amount: 30, atNight: true },
+      { id: "f-new-1", label: "Weekend", amount: 15, atNight: false },
+    ];
+
+    const business = await service.saveFees(edited);
+
+    assert.deepEqual(calls, [{ method: "PUT", url: `${API_URL}/v1/owner/business/fees`, body: { fees: edited } }]);
+    assert.deepEqual(business?.fees, savedFees);
+  });
+
+  it("sends nothing for an incomplete fee", async () => {
+    const { service, calls } = liveService();
+
+    assert.equal(await service.saveFees([{ id: "f-new-1", label: "Weekend", amount: 0, atNight: false }]), null);
     assert.equal(calls.length, 0);
   });
 });

@@ -9,7 +9,8 @@ import {
   business as seedBusiness,
   owner as seedOwner,
 } from "../../../shared/data/mock.ts";
-import type { ExtraFee, PriceItem } from "../../../shared/data/types.ts";
+import type { ExtraFee, FeeInput, PriceItem } from "../../../shared/data/types.ts";
+import { withSavedFees } from "../../business/lib/feeDraft.ts";
 import type { OwnerEditApi } from "../../../shared/infra/ownerApi.ts";
 import type { GeoPoint, LocationStatus } from "../lib/areaLocation.ts";
 import { createApiOnboardingClient } from "./onboardingApiClient.ts";
@@ -41,6 +42,7 @@ export type OnboardingService = {
   getPrices(): Promise<PriceItem[]>;
   savePrices(prices: PriceItem[]): Promise<void>;
   getFees(): Promise<ExtraFee[]>;
+  saveFees(fees: FeeInput[]): Promise<void>;
   getArea(): Promise<OnboardingArea>;
   saveArea(area: OnboardingArea): Promise<void>;
   getLocationStatus(): Promise<LocationStatus>;
@@ -77,6 +79,7 @@ export type OnboardingClient = {
   findLocationStatus(): Promise<LocationStatus>;
   saveLocation(point: GeoPoint, radiusKm: number): Promise<void>;
   findFees(): Promise<ExtraFee[]>;
+  saveFees(fees: FeeInput[]): Promise<void>;
   findHoursSummary(): Promise<string>;
 };
 
@@ -98,6 +101,7 @@ export function createOnboardingService(
     getPrices: () => currentPrices(client),
     savePrices: (prices) => client.savePrices(prices),
     getFees: () => client.findFees(),
+    saveFees: (fees) => client.saveFees(fees),
     getArea: () => currentArea(client),
     saveArea: (area) => keepNightUrgent(client, area),
     getLocationStatus: () => client.findLocationStatus(),
@@ -108,13 +112,14 @@ export function createOnboardingService(
   };
 }
 
-// In-memory client seeded with private copies of the demo owner, business, prices and area.
+// In-memory client seeded with private copies of the demo owner, business, prices, fees and area.
 export function createFakeOnboardingClient(): OnboardingClient {
   let ownerName: string | null = null;
   let email: { email: string; sentAt: string } | null = null;
   let profile: OnboardingProfile | null = null;
   let prices: PriceItem[] | null = null;
   let area: { radiusKm: number; nightUrgent: boolean } | null = null;
+  let fees = structuredClone(seedBusiness.fees);
 
   return {
     findOwnerName: async () => ownerName,
@@ -146,7 +151,10 @@ export function createFakeOnboardingClient(): OnboardingClient {
     // The demo business has its location preset, so the area step never asks for one.
     findLocationStatus: async () => "preset",
     saveLocation: async () => {},
-    findFees: async () => structuredClone(seedBusiness.fees),
+    findFees: async () => structuredClone(fees),
+    saveFees: async (next) => {
+      fees = withSavedFees(fees, next);
+    },
     findHoursSummary: async () => seedBusiness.hours.summary,
   };
 }
