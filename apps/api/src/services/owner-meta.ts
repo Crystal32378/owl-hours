@@ -9,7 +9,7 @@ import { RepositoryError } from "../db/repository.ts";
 import type { OwnerSession } from "../http/auth.ts";
 import { HttpError } from "../http/respond.ts";
 import { createMetaGraph, MetaGraphError, type MetaDeps, type MetaPage } from "../meta/graph.ts";
-import { readOAuthState, signOAuthState, type OAuthOwner } from "../meta/oauth-state.ts";
+import { readOAuthState, signOAuthState, type OAuthOwner, type OAuthState } from "../meta/oauth-state.ts";
 import type { Unavailable } from "../v1-live.ts";
 import { unwrap } from "./db-result.ts";
 
@@ -82,8 +82,10 @@ export function requireMeta(meta: MetaDeps | Unavailable | undefined): MetaDeps 
 }
 
 async function linkFromCallback(meta: MetaDeps, deps: MetaLinkDeps, query: Record<string, string>): Promise<LinkFailure | null> {
-  const owner = readOAuthState(query.state ?? "", deps.serverKey, clock(deps));
-  if (!owner) return "invalid_state";
+  const state = readOAuthState(query.state ?? "", deps.serverKey, clock(deps));
+  if (!state) return "invalid_state";
+  const unusable = await consumeState(deps.serviceDb, state);
+  if (unusable) return unusable;
   if (query.error) return "denied";
   if (!query.code) return "invalid_request";
   let pages: MetaPage[];
@@ -97,7 +99,19 @@ async function linkFromCallback(meta: MetaDeps, deps: MetaLinkDeps, query: Recor
     return "meta_error";
   }
   if (pages.length === 0) return "no_pages";
-  return saveLinks(deps.serviceDb, owner, pages);
+  return saveLinks(deps.serviceDb, state.owner, pages);
+}
+
+// Each Facebook Login links once: invalid_state when a callback already used this state.
+async function consumeState(db: SupabaseClient, state: OAuthState): Promise<LinkFailure | null> {
+  try {
+    const consumed = await db.rpc("consume_meta_oauth_nonce",
+      { p_nonce: state.nonce, p_expires_at: new Date(state.expiresAt).toISOString() });
+    return z.boolean().parse(unwrap(consumed)) ? null : "invalid_state";
+  } catch (error) {
+    console.error(`[meta] consuming the login state failed: ${error instanceof Error ? error.message : String(error)}`);
+    return "failed";
+  }
 }
 
 async function sharedPages(meta: MetaDeps, code: string): Promise<MetaPage[]> {

@@ -18,7 +18,7 @@ describe("GET /v1/owner/meta/connect-url", () => {
     assert.equal(url.searchParams.get("response_type"), "code");
     assert.equal(url.searchParams.get("scope"),
       "pages_show_list,pages_read_engagement,pages_manage_posts,instagram_basic,instagram_content_publish");
-    assert.deepEqual(readOAuthState(url.searchParams.get("state") ?? "", SERVER_KEY, NOW), { tenantId: NORTHSIDE, userId: MARIO });
+    assert.deepEqual(readOAuthState(url.searchParams.get("state") ?? "", SERVER_KEY, NOW)?.owner, { tenantId: NORTHSIDE, userId: MARIO });
     assert.doesNotMatch(url.href, new RegExp(APP_SECRET));
     assert.equal(ownerCalls[0]?.path, "/rest/v1/rpc/caller_owned_business_id");
   });
@@ -37,7 +37,7 @@ describe("GET /v1/owner/meta/connect-url", () => {
 
     const url = await connectUrl(await ownerCall(`/meta/connect-url?tenantId=10000000-0000-4000-8000-000000000002`));
 
-    assert.equal(readOAuthState(url.searchParams.get("state") ?? "", SERVER_KEY, NOW)?.tenantId, NORTHSIDE);
+    assert.equal(readOAuthState(url.searchParams.get("state") ?? "", SERVER_KEY, NOW)?.owner.tenantId, NORTHSIDE);
   });
 
   it("refuses staff, who cannot link accounts for the business", async () => {

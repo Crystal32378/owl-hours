@@ -124,18 +124,56 @@ grant execute on function private.assert_business_owner(uuid, uuid),
   public.linked_account_tokens(uuid, uuid)
   to service_role;
 
+-- A signed OAuth state links once: the callback consumes its nonce, and a replay
+-- of the same state (with another code) finds it taken. Nonces outlive their
+-- ten-minute state by an hour, so a clock skew between the API and the database
+-- cannot purge a nonce whose state the API still accepts.
+create table private.meta_oauth_nonces (
+  nonce text primary key check (char_length(nonce) between 16 and 64),
+  expires_at timestamptz not null
+);
+revoke all on private.meta_oauth_nonces from public, anon, authenticated;
+
+create function private.consume_meta_oauth_nonce(p_nonce text, p_expires_at timestamptz)
+returns boolean
+language plpgsql security definer
+set search_path = ''
+as $$
+begin
+  delete from private.meta_oauth_nonces where expires_at < now() - interval '1 hour';
+  insert into private.meta_oauth_nonces (nonce, expires_at) values (p_nonce, p_expires_at)
+  on conflict (nonce) do nothing;
+  return found;
+end
+$$;
+
+create function public.consume_meta_oauth_nonce(p_nonce text, p_expires_at timestamptz)
+returns boolean
+language sql security invoker
+set search_path = ''
+as $$ select private.consume_meta_oauth_nonce(p_nonce, p_expires_at) $$;
+
+revoke all on function private.consume_meta_oauth_nonce(text, timestamptz),
+  public.consume_meta_oauth_nonce(text, timestamptz)
+  from public, anon, authenticated;
+grant execute on function private.consume_meta_oauth_nonce(text, timestamptz),
+  public.consume_meta_oauth_nonce(text, timestamptz)
+  to service_role;
+
 -- One post per draft and platform: a retry after a partial failure skips the
 -- platforms already posted instead of posting them twice.
 create table public.content_publications (
   draft_id uuid not null references public.content_drafts (id) on delete cascade,
   tenant_id uuid not null references public.tenants (id) on delete cascade,
   platform public.social_platform not null,
-  external_id text not null check (external_id ~ '^[0-9_]{1,64}$'),
+  -- The same shape the API accepts from Graph (apps/api/src/meta/graph.ts), so a post Meta made is never lost here.
+  external_id text not null check (external_id ~ '^[0-9A-Za-z_-]{1,64}$'),
   published_at timestamptz not null default now(),
   primary key (draft_id, platform)
 );
 create index content_publications_tenant_idx on public.content_publications (tenant_id);
 alter table public.content_publications enable row level security;
+revoke all on public.content_publications from public, anon, authenticated;
 grant select on public.content_publications to authenticated;
 grant all on public.content_publications to service_role;
 create policy content_publications_select on public.content_publications
@@ -177,11 +215,85 @@ as $$
                  where not exists (select 1 from public.content_publications p
                                    where p.draft_id = d.id and p.platform = target.platform))
 $$;
+-- record_content_publication (service_role) and the trigger below (security definer) call it.
+revoke all on function private.has_unposted_platform(public.content_drafts) from public, anon, authenticated;
+grant execute on function private.has_unposted_platform(public.content_drafts) to service_role;
+
+-- Two "Approve and post" requests for the same draft must not both post: before
+-- posting, the API claims each platform it will post. The draft row lock
+-- serializes claims with record_content_publication, so a platform already
+-- posted, or claimed by another request, cannot be claimed. A failed post
+-- releases its claim for the retry. A claim left by a crashed request expires
+-- after 15 minutes, longer than the slowest post (Graph timeouts and the
+-- Instagram status checks in apps/api/src/meta/graph.ts).
+create table private.content_publication_claims (
+  draft_id uuid not null references public.content_drafts (id) on delete cascade,
+  platform public.social_platform not null,
+  claimed_at timestamptz not null default now(),
+  primary key (draft_id, platform)
+);
+revoke all on private.content_publication_claims from public, anon, authenticated;
+
+create function private.claim_content_publication(p_draft_id uuid, p_platform public.social_platform)
+returns boolean
+language plpgsql security definer
+set search_path = ''
+as $$
+declare
+  d public.content_drafts;
+begin
+  select * into d from public.content_drafts where id = p_draft_id and deleted_at is null for update;
+  if not found then
+    raise exception 'draft not found' using errcode = 'P0002';
+  end if;
+  -- Checked first: a request that lost the race to a finished publish finds the draft published.
+  if exists (select 1 from public.content_publications p where p.draft_id = d.id and p.platform = p_platform) then
+    return false;
+  end if;
+  if d.status <> 'approved' or not (p_platform = any (d.platforms)) then
+    raise exception 'draft is % and targets %', d.status, d.platforms using errcode = '22023';
+  end if;
+  insert into private.content_publication_claims as c (draft_id, platform) values (d.id, p_platform)
+  on conflict (draft_id, platform) do update set claimed_at = now()
+    where c.claimed_at < now() - interval '15 minutes';
+  return found;
+end
+$$;
+
+create function private.release_content_publication(p_draft_id uuid, p_platform public.social_platform)
+returns void
+language sql security definer
+set search_path = ''
+as $$ delete from private.content_publication_claims where draft_id = p_draft_id and platform = p_platform $$;
+
+create function public.claim_content_publication(p_draft_id uuid, p_platform public.social_platform)
+returns boolean
+language sql security invoker
+set search_path = ''
+as $$ select private.claim_content_publication(p_draft_id, p_platform) $$;
+
+create function public.release_content_publication(p_draft_id uuid, p_platform public.social_platform)
+returns void
+language sql security invoker
+set search_path = ''
+as $$ select private.release_content_publication(p_draft_id, p_platform) $$;
+
+revoke all on function private.claim_content_publication(uuid, public.social_platform),
+  private.release_content_publication(uuid, public.social_platform),
+  public.claim_content_publication(uuid, public.social_platform),
+  public.release_content_publication(uuid, public.social_platform)
+  from public, anon, authenticated;
+grant execute on function private.claim_content_publication(uuid, public.social_platform),
+  private.release_content_publication(uuid, public.social_platform),
+  public.claim_content_publication(uuid, public.social_platform),
+  public.release_content_publication(uuid, public.social_platform)
+  to service_role;
 
 -- Story Packs may now be published, but only once every targeted platform posted.
--- Scheduling and the legacy single image stay manual-only.
+-- Scheduling and the legacy single image stay manual-only. Security definer:
+-- owners editing a Story Pack fire this trigger, and they cannot run has_unposted_platform.
 create or replace function private.check_story_pack_manual_delivery()
-returns trigger language plpgsql set search_path = ''
+returns trigger language plpgsql security definer set search_path = ''
 as $$ begin
   if new.source = 'story_pack' and (new.scheduled_at is not null or new.image_path is not null) then
     raise exception 'Story Packs support manual handoff only' using errcode = '23514';

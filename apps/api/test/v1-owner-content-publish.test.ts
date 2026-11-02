@@ -7,7 +7,7 @@ import assert from "node:assert/strict";
 import { createApp } from "../src/index.ts";
 import type { V1Deps } from "../src/routes/v1.ts";
 import { fakeGraph, graphError, type GraphCall, type GraphReply } from "./helpers/fake-graph.ts";
-import { fakeSupabase, type FakeCall, type FakeReply } from "./helpers/fake-supabase.ts";
+import { fakeSupabase, type FakeCall, type FakeReply, type FakeResponder } from "./helpers/fake-supabase.ts";
 import { APP_SECRET, MARIO, NORTHSIDE, PAGE_TOKEN, SERVER_KEY, TOKEN, meta } from "./helpers/meta-app.ts";
 
 const JOB = "80000000-0000-4000-8000-000000000001";
@@ -69,6 +69,8 @@ function ownerDb(row: typeof approvedRow, posted: string[] = []) {
 function serviceDb(accounts = tokens) {
   return (call: FakeCall): FakeReply => {
     if (call.path === "/rest/v1/rpc/linked_account_tokens") return { body: accounts };
+    if (call.path === "/rest/v1/rpc/claim_content_publication") return { body: true };
+    if (call.path === "/rest/v1/rpc/release_content_publication") return { body: null };
     if (call.path === "/rest/v1/rpc/record_content_publication") {
       return { body: (call.body as { p_platform: string }).p_platform === "instagram" ? publishedRow : approvedRow };
     }
@@ -86,7 +88,46 @@ function metaGraph(call: GraphCall): GraphReply {
   return graphError(`unexpected ${call.path}`);
 }
 
-type Options = { owner?: (call: FakeCall) => FakeReply; service?: (call: FakeCall) => FakeReply; graph?: (call: GraphCall) => GraphReply; noMeta?: boolean };
+// One database behind both clients, keeping the posted and claimed platforms the way
+// record_content_publication and claim_content_publication do (supabase/tests/meta_publishing.test.sql).
+// readersToHoldBack holds the reads of posted platforms until that many requests made one,
+// so racing requests both see nothing posted before either posts.
+function sharedDatabase({ readersToHoldBack = 0 } = {}) {
+  const posted = new Set<string>();
+  const claimed = new Set<string>();
+  let releaseReaders = () => {};
+  const readersReleased = new Promise<void>((resolve) => { releaseReaders = resolve; });
+  let readers = 0;
+  const platformOf = (call: FakeCall) => (call.body as { p_platform: string }).p_platform;
+
+  const owner: FakeResponder = async (call) => {
+    if (call.path !== "/rest/v1/content_publications") return ownerDb(approvedRow)(call);
+    readers += 1;
+    if (readers >= readersToHoldBack) releaseReaders();
+    await readersReleased;
+    return { body: [...posted].map((platform) => ({ platform })) };
+  };
+  const service: FakeResponder = (call) => {
+    const target = call.path.startsWith("/rest/v1/rpc/") && call.body ? platformOf(call) : "";
+    if (call.path === "/rest/v1/rpc/claim_content_publication") {
+      const free = !posted.has(target) && !claimed.has(target);
+      claimed.add(target);
+      return { body: free };
+    }
+    if (call.path === "/rest/v1/rpc/release_content_publication") {
+      claimed.delete(target);
+      return { body: null };
+    }
+    if (call.path === "/rest/v1/rpc/record_content_publication") {
+      posted.add(target);
+      return { body: posted.size === approvedRow.platforms.length ? publishedRow : approvedRow };
+    }
+    return serviceDb()(call);
+  };
+  return { owner, service };
+}
+
+type Options = { owner?: FakeResponder; service?: FakeResponder; graph?: (call: GraphCall) => GraphReply; noMeta?: boolean };
 
 function setup(options: Options = {}) {
   const owner = fakeSupabase(options.owner ?? ownerDb(approvedRow));
@@ -181,6 +222,37 @@ describe("POST /v1/owner/content/drafts/:id/publish", () => {
 
     assert.equal((await publish()).status, 200);
     assert.equal(graphCalls.some((call) => call.path.startsWith(`/v26.0/${PAGE_ID}`)), false);
+  });
+
+  it("posts each platform once when two publishes of the same draft race, and answers 409 to the other", async () => {
+    const db = sharedDatabase({ readersToHoldBack: 2 });
+    const { publish, graphCalls } = setup({ owner: db.owner, service: db.service });
+
+    const responses = await Promise.all([publish(), publish()]);
+
+    assert.deepEqual(responses.map((response) => response.status).sort(), [200, 409]);
+    const refused = responses.find((response) => response.status === 409)!;
+    assert.equal(((await refused.json()) as { error: { code: string } }).error.code, "publish_in_progress");
+    assert.equal(graphCalls.filter((call) => call.path === `/v26.0/${PAGE_ID}/feed`).length, 1);
+    assert.equal(graphCalls.filter((call) => call.path === `/v26.0/${IG_ID}/media_publish`).length, 1);
+  });
+
+  it("releases a platform whose post failed, so the retry posts it", async () => {
+    const db = sharedDatabase();
+    let instagramFails = true;
+    const { publish, graphCalls } = setup({
+      owner: db.owner,
+      service: db.service,
+      graph: (call) => instagramFails && call.path.endsWith("/media_publish") ? graphError("Try again later.") : metaGraph(call),
+    });
+
+    assert.equal((await publish()).status, 502);
+    instagramFails = false;
+    const retry = await publish();
+
+    assert.equal(retry.status, 200);
+    assert.equal(graphCalls.filter((call) => call.path === `/v26.0/${PAGE_ID}/feed`).length, 1);
+    assert.equal(graphCalls.filter((call) => call.path === `/v26.0/${IG_ID}/media_publish`).length, 2);
   });
 
   it("refuses before posting anything when a targeted platform is not linked", async () => {

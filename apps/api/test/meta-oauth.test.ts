@@ -52,7 +52,7 @@ describe("OAuth state", () => {
   it("reads back the business and user it was signed for", () => {
     const state = signOAuthState(owner, KEY, NOW);
 
-    assert.deepEqual(readOAuthState(state, KEY, NOW + 60_000), owner);
+    assert.deepEqual(readOAuthState(state, KEY, NOW + 60_000)?.owner, owner);
   });
 
   it("is different on every sign, so it cannot be predicted", () => {
@@ -62,7 +62,7 @@ describe("OAuth state", () => {
   it("expires after ten minutes", () => {
     const state = signOAuthState(owner, KEY, NOW);
 
-    assert.deepEqual(readOAuthState(state, KEY, NOW + 9 * 60_000), owner);
+    assert.deepEqual(readOAuthState(state, KEY, NOW + 9 * 60_000)?.owner, owner);
     assert.equal(readOAuthState(state, KEY, NOW + 10 * 60_000 + 1), null);
   });
 

@@ -47,6 +47,11 @@ export function linkingGraph(call: GraphCall): GraphReply {
   return graphError(`unexpected ${call.path}`);
 }
 
+// The service_role database: every state is fresh and every link saves ACCOUNT.
+export function linkingService(call: FakeCall): FakeReply {
+  return { body: call.path === "/rest/v1/rpc/consume_meta_oauth_nonce" ? true : ACCOUNT };
+}
+
 export type SetupOptions = {
   owner?: (call: FakeCall) => FakeReply;
   service?: (call: FakeCall) => FakeReply;
@@ -56,7 +61,7 @@ export type SetupOptions = {
 
 export function setup(options: SetupOptions = {}) {
   const owner = fakeSupabase(options.owner ?? (() => ({ body: NORTHSIDE })));
-  const service = fakeSupabase(options.service ?? (() => ({ body: ACCOUNT })));
+  const service = fakeSupabase(options.service ?? linkingService);
   const graph = fakeGraph(options.graph ?? linkingGraph);
   const deps: V1Deps = {
     authenticate: async (token) => (token === TOKEN ? { userId: MARIO, db: owner.client } : null),

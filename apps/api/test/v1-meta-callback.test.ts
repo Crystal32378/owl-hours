@@ -4,10 +4,10 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { signOAuthState } from "../src/meta/oauth-state.ts";
 import { graphError } from "./helpers/fake-graph.ts";
-import { pgError } from "./helpers/fake-supabase.ts";
+import { pgError, type FakeCall } from "./helpers/fake-supabase.ts";
 import {
-  APP_SECRET, LONG_TOKEN, MARIO, NORTHSIDE, NOW, PAGE_TOKEN, SERVER_KEY, SHORT_TOKEN,
-  linkingGraph, page, proofOf, redirectOf, setup, validState,
+  ACCOUNT, APP_SECRET, LONG_TOKEN, MARIO, NORTHSIDE, NOW, PAGE_TOKEN, SERVER_KEY, SHORT_TOKEN,
+  linkingGraph, linkingService, page, proofOf, redirectOf, setup, validState,
 } from "./helpers/meta-app.ts";
 
 describe("GET /v1/meta/callback", () => {
@@ -33,7 +33,7 @@ describe("GET /v1/meta/callback", () => {
     assert.equal(accounts!.params.get("access_token"), LONG_TOKEN);
     assert.equal(accounts!.params.get("appsecret_proof"), proofOf(LONG_TOKEN));
     assert.equal(accounts!.params.get("fields"), "id,name,access_token,instagram_business_account{id,username}");
-    assert.deepEqual(serviceCalls.map((call) => [call.path, call.body]), [
+    assert.deepEqual(linkCalls(serviceCalls).map((call) => [call.path, call.body]), [
       ["/rest/v1/rpc/save_linked_account", {
         p_tenant_id: NORTHSIDE, p_user_id: MARIO, p_platform: "facebook_page",
         p_external_id: "555000111", p_display_name: "Northside Plumbing", p_token: PAGE_TOKEN,
@@ -53,7 +53,7 @@ describe("GET /v1/meta/callback", () => {
     });
 
     assert.equal(redirectOf(await callback(`code=c&state=${validState()}`)).searchParams.get("meta"), "linked");
-    assert.deepEqual(serviceCalls.map((call) => (call.body as { p_platform: string }).p_platform), ["facebook_page"]);
+    assert.deepEqual(linkCalls(serviceCalls).map((call) => (call.body as { p_platform: string }).p_platform), ["facebook_page"]);
   });
 
   for (const [label, state] of [
@@ -71,6 +71,48 @@ describe("GET /v1/meta/callback", () => {
       assert.equal(serviceCalls.length, 0);
     });
   }
+
+  it("links once per state: a replay with another code returns invalid_state and links nothing", async () => {
+    const consumed = new Set<string>();
+    const { callback, graphCalls, serviceCalls } = setup({
+      service: (call) => {
+        if (call.path !== "/rest/v1/rpc/consume_meta_oauth_nonce") return { body: ACCOUNT };
+        const { p_nonce: nonce } = call.body as { p_nonce: string };
+        const fresh = !consumed.has(nonce);
+        consumed.add(nonce);
+        return { body: fresh };
+      },
+    });
+    const state = validState();
+
+    assert.equal(redirectOf(await callback(`code=first-code&state=${state}`)).searchParams.get("meta"), "linked");
+    const graphCallsAfterFirst = graphCalls.length;
+    const replay = redirectOf(await callback(`code=second-code&state=${state}`));
+
+    assert.equal(replay.href, "https://owner.zukki.test/content/accounts?meta=error&reason=invalid_state");
+    assert.equal(graphCalls.length, graphCallsAfterFirst);
+    assert.equal(linkCalls(serviceCalls).length, 2);
+  });
+
+  it("consumes the state's nonce until the state expires, before calling Meta", async () => {
+    const { callback, graphCalls, serviceCalls } = setup();
+    const state = validState();
+
+    await callback(`code=c&state=${state}`);
+
+    const [consume] = serviceCalls;
+    assert.equal(consume?.path, "/rest/v1/rpc/consume_meta_oauth_nonce");
+    assert.deepEqual(consume?.body, { p_nonce: nonceOf(state), p_expires_at: new Date(NOW + 10 * 60_000).toISOString() });
+    assert.ok(graphCalls.length > 0);
+  });
+
+  it("returns the owner with reason failed, without calling Meta, when the state cannot be consumed", async (t) => {
+    t.mock.method(console, "error", () => {});
+    const { callback, graphCalls } = setup({ service: () => pgError("08006", "connection failure", 503) });
+
+    assert.equal(redirectOf(await callback(`code=c&state=${validState()}`)).searchParams.get("reason"), "failed");
+    assert.equal(graphCalls.length, 0);
+  });
 
   it("returns the owner with reason denied when they cancel the dialog", async () => {
     const { callback, graphCalls } = setup();
@@ -91,7 +133,7 @@ describe("GET /v1/meta/callback", () => {
     const location = redirectOf(await callback(`code=c&state=${validState()}`));
 
     assert.equal(location.searchParams.get("reason"), "meta_error");
-    assert.equal(serviceCalls.length, 0);
+    assert.equal(linkCalls(serviceCalls).length, 0);
     assert.doesNotMatch(logged.join("\n"), new RegExp(`${SHORT_TOKEN}|${APP_SECRET}`));
   });
 
@@ -107,7 +149,7 @@ describe("GET /v1/meta/callback", () => {
 
       assert.equal(response.status, 302);
       assert.equal(redirectOf(response).searchParams.get("reason"), "meta_error");
-      assert.equal(serviceCalls.length, 0);
+      assert.equal(linkCalls(serviceCalls).length, 0);
     }
   });
 
@@ -117,12 +159,25 @@ describe("GET /v1/meta/callback", () => {
     });
 
     assert.equal(redirectOf(await callback(`code=c&state=${validState()}`)).searchParams.get("reason"), "no_pages");
-    assert.equal(serviceCalls.length, 0);
+    assert.equal(linkCalls(serviceCalls).length, 0);
   });
 
   it("returns the owner with reason forbidden when the user no longer owns the business", async () => {
-    const { callback } = setup({ service: () => pgError("42501", "only the business owner can link accounts", 403) });
+    const { callback } = setup({
+      service: (call) => linkCalls([call]).length > 0
+        ? pgError("42501", "only the business owner can link accounts", 403)
+        : linkingService(call),
+    });
 
     assert.equal(redirectOf(await callback(`code=c&state=${validState()}`)).searchParams.get("reason"), "forbidden");
   });
 });
+
+function linkCalls(calls: FakeCall[]): FakeCall[] {
+  return calls.filter((call) => call.path === "/rest/v1/rpc/save_linked_account");
+}
+
+function nonceOf(state: string): string {
+  const [, payload] = state.split(".");
+  return (JSON.parse(Buffer.from(payload ?? "", "base64url").toString()) as { n: string }).n;
+}

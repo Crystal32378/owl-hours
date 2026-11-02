@@ -3,11 +3,13 @@
 // which has no owner session, so the state itself says which business and
 // user started the link: "v1.<payload>.<HMAC-SHA256 signature>", base64url,
 // valid for ten minutes. The key is derived from ZUKKI_SERVER_KEY, so a
-// state cannot be forged or moved to another business without it.
+// state cannot be forged or moved to another business without it. Its random
+// nonce lets the callback consume a state once, so a replay links nothing.
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
 
 export type OAuthOwner = { tenantId: string; userId: string };
+export type OAuthState = { owner: OAuthOwner; nonce: string; expiresAt: number };
 
 const VERSION = "v1";
 const LIFETIME_MS = 10 * 60_000;
@@ -19,14 +21,15 @@ export function signOAuthState(owner: OAuthOwner, serverKey: string, now: number
   return `${VERSION}.${encoded}.${signatureOf(encoded, serverKey).toString("base64url")}`;
 }
 
-// The owner the state was signed for, or null when it is forged, altered or expired.
-export function readOAuthState(state: string, serverKey: string, now: number): OAuthOwner | null {
+// The owner the state was signed for and its nonce, or null when it is forged, altered or expired.
+export function readOAuthState(state: string, serverKey: string, now: number): OAuthState | null {
   const [version, encoded, signature, ...rest] = state.split(".");
   if (version !== VERSION || !encoded || !signature || rest.length > 0) return null;
   if (!hasSignature(encoded, signature, serverKey)) return null;
   const payload = payloadSchema.safeParse(parseJson(Buffer.from(encoded, "base64url").toString()));
   if (!payload.success || payload.data.e < now) return null;
-  return { tenantId: payload.data.t, userId: payload.data.u };
+  const { t: tenantId, u: userId, n: nonce, e: expiresAt } = payload.data;
+  return { owner: { tenantId, userId }, nonce, expiresAt };
 }
 
 function hasSignature(encoded: string, signature: string, serverKey: string): boolean {
