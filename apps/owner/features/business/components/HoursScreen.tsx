@@ -34,6 +34,7 @@ export default function HoursScreen(props: {
   const { insets } = props;
   const [days, setDays] = useState(() => toDayDrafts(props.hours));
   const [saveFailed, setSaveFailed] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   function updateDay(weekday: number, patch: Partial<DayDraft>) {
     setSaveFailed(false);
@@ -41,7 +42,10 @@ export default function HoursScreen(props: {
   }
 
   async function save() {
-    setSaveFailed(!(await props.onSave(toShifts(days))));
+    setIsSaving(true);
+    const saved = await props.onSave(toShifts(days));
+    setSaveFailed(!saved);
+    setIsSaving(false);
   }
 
   return (
@@ -70,7 +74,7 @@ export default function HoursScreen(props: {
               variant="primary"
               size="lg"
               width="100%"
-              isDisabled={!days.every(isDayValid)}
+              isDisabled={isSaving || !days.every(isDayValid)}
               onClick={save}
             />
           </div>

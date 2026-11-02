@@ -53,6 +53,26 @@ The sample video is made from a generated picture (`muse-image-1.0`), not a real
 
 With a key, the run also sends two different media and fails if they get the same reading (`scripts/e2e/media-flow.mjs`), which shows the replies come from the models.
 
+### Owner App Preview for the Browser (No Backend)
+
+A static build of the owner app with fictional data, separate from the WhatsApp flow. It needs no database, API or key, and it can go on any static host that answers unknown paths with `index.html`.
+
+```sh
+cd apps/owner
+EXPO_PUBLIC_STORY_PACK_MODE=demo npx expo export --platform web
+cd ../..
+node scripts/local/serve-owner-web.mjs apps/owner/dist 8082
+```
+
+Leave `EXPO_PUBLIC_API_URL`, `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_ANON_KEY` unset, and delete `apps/owner/.env.local` from the build machine if it has one; with them, the build talks to that backend.
+
+What viewers should know:
+
+- It opens on **Requests** as Northside Plumbing, with no sign-in.
+- Everything lives in the browser tab: reloading starts the demo over, including the 5-minute request timer.
+- Nothing is sent or published. **Approve and post** only moves the draft, and the linked Facebook and Instagram accounts are fictional.
+- Test Zukki and Polish with Zukki answer from fixed demo rules, not from the models.
+
 ---
 
 ## 4. Run Locally With Your Own WhatsApp and Meta Keys

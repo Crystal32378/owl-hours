@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import FinishScreen from '../../../features/jobs/components/FinishScreen';
 import { useFinishJob } from '../../../features/jobs/hooks/useFinishJob';
 import LoadingSkeleton from '../../../shared/shell/LoadingSkeleton';
+import { goBackOr } from '../../../shared/lib/goBack';
 
 export default function JobFinishRoute() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -25,7 +26,7 @@ export default function JobFinishRoute() {
         if (isFinished) router.dismissTo('/(tabs)/jobs');
         return isFinished;
       }}
-      onBack={async () => router.back()}
+      onBack={async () => goBackOr(router, `/job/${id}`)}
       dom={domHost}
     />
   );

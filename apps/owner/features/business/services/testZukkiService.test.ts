@@ -51,6 +51,34 @@ describe("testZukki demo fake (S6: the two design exchanges, verbatim)", () => {
     assert.equal(session.getSnapshot().draft, "", "a sent question leaves the composer");
   });
 
+  for (const [label, question, expected, sources] of [
+    ["a leak and the night", "How much is a leak repair and are you open at night?", /Leak repair starts at \$60.*\$25/, ["Visit", "Leak repair", "Night fee"]],
+    ["a clogged drain, in Spanish", "¿Cuánto cuesta destapar un drenaje?", /Unclog a drain starts at \$80/, ["Visit", "Unclog a drain"]],
+    ["a water heater", "Do you install water heaters?", /Water heater install starts at \$350/, ["Visit", "Water heater install"]],
+    ["the hours", "What are your hours?", /Mon–Sat, 8 AM–8 PM/, ["Hours"]],
+  ] as const) {
+    it(`answers ${label} from the demo business`, async () => {
+      const session = createTestZukkiSession(createFakeTestZukkiClient());
+      session.setDraft(question);
+
+      await session.ask();
+
+      const last = lastTurnOf(session);
+      assert.match(last.answer?.text ?? "", expected);
+      assert.deepEqual(last.answer?.sources, sources);
+    });
+  }
+
+  it("still says a service it does not offer is not offered", async () => {
+    const session = createTestZukkiSession(createFakeTestZukkiClient());
+    session.setDraft("Can you fix my car?");
+
+    await session.ask();
+
+    assert.match(lastTurnOf(session).answer?.text ?? "", /not in Northside Plumbing's services/);
+    assert.deepEqual(lastTurnOf(session).answer?.sources, []);
+  });
+
   it("answers the gas-heater question as not offered, with no sources", async () => {
     const session = createTestZukkiSession(createFakeTestZukkiClient());
     session.setDraft(GAS_HEATER_QUESTION);

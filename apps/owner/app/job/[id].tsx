@@ -6,6 +6,7 @@ import JobScreen from '../../features/jobs/components/JobScreen';
 import JobsLoadError from '../../features/jobs/components/JobsLoadError';
 import { useJob } from '../../features/jobs/hooks/useJob';
 import LoadingSkeleton from '../../shared/shell/LoadingSkeleton';
+import { goBackOr } from '../../shared/lib/goBack';
 
 export default function JobRoute() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -24,7 +25,7 @@ export default function JobRoute() {
       insets={safeInsets}
       onAdvance={job.advance}
       onOpenFinish={async () => router.push(`/job/${id}/finish`)}
-      onBack={async () => router.back()}
+      onBack={async () => goBackOr(router, '/(tabs)/jobs')}
       dom={domHost}
     />
   );

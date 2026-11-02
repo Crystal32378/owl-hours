@@ -8,6 +8,7 @@ import { destinationAfterAccept } from '../../features/requests/lib/acceptOutcom
 import { shouldOpenDeclineSheet } from '../../features/requests/lib/declineSheet';
 import { useRequestOffer } from '../../features/requests/hooks/useRequestOffer';
 import LoadingSkeleton from '../../shared/shell/LoadingSkeleton';
+import { goBackOr } from '../../shared/lib/goBack';
 
 export default function RequestRoute() {
   const { id, decline } = useLocalSearchParams<{ id: string; decline?: string | string[] }>();
@@ -38,7 +39,7 @@ export default function RequestRoute() {
       onDecline={async (reason) => {
         if (!(await request.decline(reason))) return;
         await Haptics.selectionAsync();
-        router.back();
+        goBackOr(router, '/(tabs)/requests');
       }}
       dom={domHost}
     />

@@ -11,6 +11,7 @@ import AccountsScreen from '../../../features/content/components/AccountsScreen'
 import { useLinkedAccounts, type LinkedAccountsView } from '../../../features/content/hooks/useLinkedAccounts';
 import { linkNotice, loginSessionNotice, type LinkNotice } from '../../../features/content/lib/linkNotice';
 import LoadingSkeleton from '../../../shared/shell/LoadingSkeleton';
+import { goBackOr } from '../../../shared/lib/goBack';
 
 export default function AccountsRoute() {
   const insets = useSafeAreaInsets();
@@ -39,7 +40,7 @@ export default function AccountsRoute() {
       notice={actionNotice ?? sessionNotice ?? linkNotice(meta, reason)}
       insets={safeInsets}
       onBack={async () => {
-        router.back();
+        goBackOr(router, '/(tabs)/content');
       }}
       onConnect={async () => {
         const notice = await connectWithFacebook(view);
@@ -52,7 +53,7 @@ export default function AccountsRoute() {
         await view.unlink(id);
       }}
       onSeeDrafts={async () => {
-        router.back();
+        goBackOr(router, '/(tabs)/content');
       }}
       dom={domHost}
     />

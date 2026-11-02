@@ -1,6 +1,6 @@
 // Spec: odd/tasks/owner-content.md, S2, S3, and S4 requirements.
 // Service and fake client adapter for content drafts, published posts, and post approval.
-import { DEMO_NOW, accounts as mockAccounts, anaJob, business, drafts as mockDrafts } from "../../../shared/data/mock.ts";
+import { DEMO_NOW, accounts as mockAccounts, anaJob, business, drafts as mockDrafts, regeneratedCaptions } from "../../../shared/data/mock.ts";
 import type { ID, Job, PostDraft } from "../../../shared/data/types.ts";
 import type { JobPhotoSource } from "../lib/jobPhotos.ts";
 import { approvePost, regeneratePost } from "../lib/postApproval.ts";
@@ -57,6 +57,17 @@ export function createPostsService(
 ): PostsService {
   const clock = deps?.now ?? (() => DEMO_NOW);
   const canRegenerate = deps?.canRegenerate ?? true;
+  const regeneratedIds = new Set<ID>();
+
+  // Only the demo can regenerate. Each tap swaps between the draft's caption and its other one.
+  function withNextCaption(post: PostDraft): PostDraft {
+    const other = regeneratedCaptions[post.id];
+    if (!other) return post;
+    const isShowingOther = regeneratedIds.delete(post.id);
+    if (isShowingOther) return post;
+    regeneratedIds.add(post.id);
+    return { ...post, caption: other };
+  }
 
   return {
     canRegenerate,
@@ -101,7 +112,8 @@ export function createPostsService(
     regenerate: async (id) => {
       if (!canRegenerate) return null;
       const post = await client.findPost(id);
-      return post ? regeneratePost(post) : null;
+      const regenerated = post ? regeneratePost(post) : null;
+      return regenerated && withNextCaption(regenerated);
     },
   };
 }
