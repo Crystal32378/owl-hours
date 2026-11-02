@@ -5,6 +5,7 @@ import HoursScreen from "../../features/business/components/HoursScreen";
 import BusinessLoadError from "../../features/business/components/BusinessLoadError";
 import { useHours } from "../../features/business/hooks/useHours";
 import LoadingSkeleton from '../../shared/shell/LoadingSkeleton';
+import { goBackOr } from '../../shared/lib/goBack';
 
 export default function HoursRoute() {
   const insets = useSafeAreaInsets();
@@ -21,10 +22,10 @@ export default function HoursRoute() {
     <HoursScreen
       hours={view.hours}
       insets={safeInsets}
-      onBack={async () => router.back()}
+      onBack={async () => goBackOr(router, '/(tabs)/business')}
       onSave={async (updated) => {
         if (!(await view.saveHours(updated))) return false;
-        router.back();
+        goBackOr(router, '/(tabs)/business');
         return true;
       }}
       dom={domHost}

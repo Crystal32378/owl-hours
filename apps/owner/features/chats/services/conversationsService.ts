@@ -1,3 +1,4 @@
+import { firstName } from "../../../shared/lib/firstName.ts";
 import { OWNER_TEXT, POLISHED_TEXT, anaJob, business, conversations as seedConversations, offers as seedOffers } from "../../../shared/data/mock.ts";
 import { createThreadStore } from "../../../shared/data/threadStore.ts";
 import type { ThreadStore } from "../../../shared/data/threadStore.ts";
@@ -98,12 +99,20 @@ export function createFakeConversationsClient(deps: Partial<FakeConversationsCli
     findQuoteSuggestion: async (conversationId) => findDemoQuoteSuggestion(conversationsById.get(conversationId)),
     findBusinessName: async () => business.name,
     saveMessage: async (conversationId, message) => threads.append(conversationId, message),
-    polish: async (text) => ({
+    polish: async (text, conversationId) => ({
       original: text,
-      polished: text === OWNER_TEXT ? POLISHED_TEXT : text,
+      polished: text === OWNER_TEXT ? POLISHED_TEXT : politeDemoText(text, conversationsById.get(conversationId)?.customerName),
       language: "English",
     }),
   };
+}
+
+// The demo has no model behind it: a greeting and tidy punctuation show what polishing offers.
+function politeDemoText(text: string, customerName: string | undefined): string {
+  const trimmed = text.trim();
+  const sentence = trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
+  const ending = /[.!?]$/.test(sentence) ? "" : ".";
+  return customerName ? `Hi ${firstName(customerName)}, ${sentence}${ending}` : `${sentence}${ending}`;
 }
 
 // Zukki suggests the quote of the offer behind a conversation, but only when that conversation has a job.

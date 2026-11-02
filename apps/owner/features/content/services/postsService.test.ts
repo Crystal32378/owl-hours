@@ -130,6 +130,24 @@ describe("postsService.regenerate", () => {
     assert.equal(buildService().canRegenerate, true);
   });
 
+  it("in the demo, each regenerate gives another caption and comes back around", async () => {
+    const service = buildService();
+    const original = (await service.getDraft("post_91"))?.caption;
+
+    const first = await service.regenerate("post_91");
+    const second = await service.regenerate("post_91");
+
+    assert.ok(first?.caption);
+    assert.notEqual(first?.caption, original);
+    assert.equal(second?.caption, original);
+  });
+
+  it("gives every demo draft a caption to review", async () => {
+    const drafts = await buildService().getDrafts();
+
+    assert.deepEqual(drafts.filter((draft) => !draft.caption).map((draft) => draft.id), []);
+  });
+
   it("returns null when regenerating a non-draft (already scheduled)", async () => {
     const service = buildService();
     await service.approve("post_91");

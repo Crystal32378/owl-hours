@@ -191,12 +191,19 @@ export const graceJob: Job = {
   shareConsent: "not_asked",
 };
 
+// What Regenerate offers in the demo, by draft.
+export const regeneratedCaptions: Record<string, string> = {
+  post_91: "Fixed in 91 minutes, in the middle of the night. If water reaches your floor, message us through Zukki.",
+  post_night: "Plumbing problems don't wait for morning. Message Northside Plumbing through Zukki, day or night.",
+  post_price: "Dripping pipe? Northside Plumbing fixes leaks from $60. Send a photo through Zukki and get a quote.",
+};
+
 export const drafts: PostDraft[] = [
   { id: "post_91", title: "Fixed in 91 minutes", source: "job", sourceJobId: "job_ana", imageUrl: "before-after",
     caption: "Water on the floor at midnight? Message us through Zukki. We reply in minutes and come the same night.",
     targets: { facebook: true, instagram: true }, scheduledFor: "2026-10-28T18:00:00-05:00", status: "draft" },
-  { id: "post_night", title: "We answer at night", source: "reminder", caption: "", targets: { facebook: true, instagram: true }, status: "draft" },
-  { id: "post_price", title: "Leak repair from $60", source: "prices", caption: "", targets: { facebook: true, instagram: false }, status: "draft" },
+  { id: "post_night", title: "We answer at night", source: "reminder", caption: "Pipe burst at 2 AM? Northside Plumbing answers at night through Zukki. The night fee is $25, and you see the price before we come.", targets: { facebook: true, instagram: true }, status: "draft" },
+  { id: "post_price", title: "Leak repair from $60", source: "prices", caption: "A small leak gets expensive fast. Leak repair starts at $60, with a clear quote before we begin.", targets: { facebook: true, instagram: false }, status: "draft" },
 ];
 
 export const accounts: LinkedAccount[] = [

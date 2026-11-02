@@ -79,6 +79,12 @@ describe("conversationsService.sendMessage with polish off (option A)", () => {
 });
 
 describe("conversationsService.sendMessage with polish on (option B)", () => {
+  it("in the demo, gives any other message a greeting and tidy punctuation", async () => {
+    const result = await buildService().sendMessage("c_ana", "mario ya va llega en 40", { polish: true });
+
+    assert.deepEqual(result, { original: "mario ya va llega en 40", polished: "Hi Ana, Mario ya va llega en 40.", language: "English" });
+  });
+
   it("returns a PolishPreview of the owner's text and does not send", async () => {
     const result = await buildService().sendMessage("c_ana", OWNER_TEXT, { polish: true });
 

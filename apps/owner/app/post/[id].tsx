@@ -6,6 +6,7 @@ import ContentLoadError from '../../features/content/components/ContentLoadError
 import PostReviewScreen from '../../features/content/components/PostReviewScreen';
 import { usePostReview } from '../../features/content/hooks/usePostReview';
 import LoadingSkeleton from '../../shared/shell/LoadingSkeleton';
+import { goBackOr } from '../../shared/lib/goBack';
 
 export default function PostReviewRoute() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -39,7 +40,7 @@ export default function PostReviewRoute() {
       approveError={view.approveError}
       insets={safeInsets}
       onBack={async () => {
-        router.back();
+        goBackOr(router, '/(tabs)/content');
       }}
       onEditToggle={view.onToggleEditCaption}
       onCaptionChange={view.onSetCaption}

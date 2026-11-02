@@ -3,6 +3,7 @@ import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import TestZukkiScreen from "../../features/business/components/TestZukkiScreen";
 import { useTestZukki } from "../../features/business/hooks/useTestZukki";
+import { goBackOr } from '../../shared/lib/goBack';
 
 export default function TestZukkiRoute() {
   const insets = useSafeAreaInsets();
@@ -15,7 +16,7 @@ export default function TestZukkiRoute() {
       hasError={testZukki.hasError}
       isAsking={testZukki.isAsking}
       insets={safeInsets}
-      onBack={async () => router.back()}
+      onBack={async () => goBackOr(router, '/(tabs)/business')}
       onAsk={async (question) => testZukki.sendQuestion(question)}
       onOpenPrices={async () => router.push('/business/prices')}
       dom={domHost}

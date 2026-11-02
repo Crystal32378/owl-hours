@@ -6,6 +6,7 @@ import JobsLoadError from '../../../features/jobs/components/JobsLoadError';
 import QuoteScreen from '../../../features/jobs/components/QuoteScreen';
 import { useQuoteDraft } from '../../../features/jobs/hooks/useQuoteDraft';
 import LoadingSkeleton from '../../../shared/shell/LoadingSkeleton';
+import { goBackOr } from '../../../shared/lib/goBack';
 
 export default function QuoteRoute() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -28,10 +29,10 @@ export default function QuoteRoute() {
       insets={safeInsets}
       onSend={async (lines) => {
         const isSent = await draft.send(lines);
-        if (isSent) router.back();
+        if (isSent) goBackOr(router, `/chat/${id}`);
         return isSent;
       }}
-      onCancel={async () => router.back()}
+      onCancel={async () => goBackOr(router, `/chat/${id}`)}
       dom={domHost}
     />
   );

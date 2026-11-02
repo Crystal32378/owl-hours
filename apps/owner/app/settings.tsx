@@ -6,6 +6,7 @@ import BusinessLoadError from "../features/business/components/BusinessLoadError
 import { useSettings } from "../features/business/hooks/useSettings";
 import { useOwnerAuth } from "../features/auth/hooks/useOwnerAuth";
 import LoadingSkeleton from '../shared/shell/LoadingSkeleton';
+import { goBackOr } from '../shared/lib/goBack';
 
 export default function SettingsRoute() {
   const insets = useSafeAreaInsets();
@@ -26,7 +27,7 @@ export default function SettingsRoute() {
       acceptWindowDetail={view.acceptWindowDetail}
       linkedAccountsValue={view.linkedAccountsValue}
       insets={safeInsets}
-      onBack={async () => router.back()}
+      onBack={async () => goBackOr(router, '/(tabs)/requests')}
       onToggleSetting={view.toggleSetting}
       onOpenAccounts={async () => router.push('/content/accounts')} // owned by the content slice
       // Live: the session ends and the auth gate opens sign-up; the demo has no session and goes to the intro.

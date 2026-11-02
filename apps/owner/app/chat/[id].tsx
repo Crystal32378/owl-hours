@@ -6,6 +6,7 @@ import ChatLoadError from '../../features/chats/components/ChatLoadError';
 import ChatScreen from '../../features/chats/components/ChatScreen';
 import { useConversation } from '../../features/chats/hooks/useConversation';
 import LoadingSkeleton from '../../shared/shell/LoadingSkeleton';
+import { goBackOr } from '../../shared/lib/goBack';
 
 export default function ChatRoute() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -43,7 +44,7 @@ export default function ChatRoute() {
         if (view.jobId) router.push({ pathname: '/job/[id]', params: { id: view.jobId } });
       }}
       onReviewQuote={async () => router.push({ pathname: '/chat/[id]/quote', params: { id } })}
-      onBack={async () => router.back()}
+      onBack={async () => goBackOr(router, '/(tabs)/chats')}
       dom={domHost}
     />
   );
