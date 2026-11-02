@@ -21,7 +21,7 @@ const verbatimCopys = {
   after: "After",
   addPhoto: "Add",
   total: "Total",
-  sharePhotosHint: "For posts. Only used if she says yes.",
+  sharePhotosHint: "For posts. Only used if they say yes.",
   markAsDone: "Mark as done",
 };
 

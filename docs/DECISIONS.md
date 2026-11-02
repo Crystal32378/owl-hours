@@ -578,3 +578,12 @@ it with a new one.
 - **A point is not proof of a valve:** SAM cuts out whatever sits at a point, so a box over half of the frame is dropped and at most four points are asked. A wrong small object can still be circled; there is no second check.
 - **All categories:** every photo or video is read, for plumbing, electrical, locksmith, food, beauty, auto and pets, with safety rules in the prompt: wires, gas, unsafe cars, and no diagnosis of a pet or a person. Only water problems look for a valve; nothing else is marked.
 - **Limits:** a reading took 14-56 s in tests. Fixed copy stays in English; only Spark's message follows the customer's language.
+
+## D39: A run with no accounts, on a fake WhatsApp and recorded models
+
+- **Decision:** `scripts/local/judge.sh` runs the product from a clean clone with Docker, Node, pnpm and ffmpeg only. WhatsApp is `scripts/local/fake-whatsapp.mjs`; without a key, the models are `scripts/local/replay-models.mjs` serving answers recorded from real runs. With `META_MODEL_API_KEY`, the same run calls Meta.
+- **Why:** the hackathon's judges run the project from the repo without an account on an outside service, and they cannot use our WhatsApp number. Hosting is not required.
+- **Replay stays honest:** the API logs `not calling Meta`, and a request with no recording gets an error, so other media get no reading instead of the sample's.
+- **Tokens stay safe:** `WHATSAPP_GRAPH_HOST` and `META_MODEL_BASE_URL` accept loopback URLs only, and production is unchanged when they are unset.
+- **Limits:** recordings cover the sample video and the demo script. The owner's AI-polished message is not recorded, so with no key polishing fails and the owner sends their own text.
+

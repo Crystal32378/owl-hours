@@ -60,8 +60,8 @@ describe("jobsCopys", () => {
 });
 
 describe("jobsCopys that name the customer", () => {
-  it('approvalNotice("Ana") is "Ana approves it in WhatsApp. Nothing is booked until she does."', () => {
-    assert.equal(jobsCopys.approvalNotice("Ana"), "Ana approves it in WhatsApp. Nothing is booked until she does.");
+  it('approvalNotice("Ana") is "Ana approves it in WhatsApp. Nothing is booked until they do."', () => {
+    assert.equal(jobsCopys.approvalNotice("Ana"), "Ana approves it in WhatsApp. Nothing is booked until they do.");
   });
 
   it('sharedAfterApproved("Ana", 1.2) is "Shared after Ana approved · 1.2 km"', () => {

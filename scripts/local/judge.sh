@@ -54,7 +54,7 @@ ENV
 
 node scripts/local/fake-whatsapp.mjs > "$run_dir/whatsapp.log" 2>&1 &
 pids+=($!)
-(cd apps/api && exec node --env-file="$run_dir/api.env" src/server.ts) &
+(cd apps/api && exec node --env-file="$run_dir/api.env" src/server.ts) > "$run_dir/api.log" 2>&1 &
 pids+=($!)
 echo "Building the owner app..."
 (cd apps/owner && CI=1 EXPO_PUBLIC_API_URL=http://localhost:3000 EXPO_PUBLIC_SUPABASE_URL="$API_URL" \
@@ -83,6 +83,7 @@ node scripts/e2e/demo-customer.mjs
 cat <<INFO
 
 Everything is running. Models: $models_note
+API log: $run_dir/api.log (removed when this stops)
 
   Customer's messages   http://127.0.0.1:4010
   Owner app             http://localhost:8081
