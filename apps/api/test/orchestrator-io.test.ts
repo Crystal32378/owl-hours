@@ -6,7 +6,8 @@ import { existsSync } from "node:fs";
 import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { ChatRequest } from "@owl-hours/meta-models";
+import type { ChatRequest, ContentPart } from "@owl-hours/meta-models";
+import { GENERIC_VALVE_ADVICE } from "../src/ai/valve-step.ts";
 import { historyMessages, historyText } from "../src/orchestrator/history.ts";
 import { createMediaReader } from "../src/orchestrator/media.ts";
 import { createSerializer } from "../src/orchestrator/serial.ts";
@@ -168,29 +169,44 @@ describe("createConversationStore", () => {
 });
 
 describe("createMediaReader", () => {
+  const HELPS = {
+    problem: "Toilet overflowing onto the floor",
+    severity: "emergency",
+    waterShutOff: "helps",
+    valveObject: "angle valve",
+    bestSeconds: 7,
+  } as const;
+  const video = { conversationId: CHAT, mediaId: MEDIA, mediaType: "video", caption: "help", findValve: true } as const;
+  const notesOf = (parts: ContentPart[]) => parts.flatMap((part) => (part.type === "text" ? [part.text] : [])).join("\n");
+
   async function fakePipeline(over: Partial<PipelineDeps> = {}) {
     const dir = await mkdtemp(join(tmpdir(), "zukki-"));
     const file = join(dir, "in.mp4");
     await writeFile(file, "x");
     const calls: string[] = [];
+    const frameSeconds: (number | undefined)[] = [];
+    const concepts: (string | undefined)[] = [];
     const pipeline: PipelineDeps = {
       downloadMedia: async () => file,
       toWav: async (p) => `${p}.wav`,
       transcribe: async () => "water everywhere",
-      extractFrame: async (p) => {
+      triage: async () => HELPS,
+      extractFrame: async (p, atSeconds) => {
         calls.push("frame");
+        frameSeconds.push(atSeconds);
         return `${p}.jpg`;
       },
       toDataUrl: async () => "data:image/jpeg;base64,AAAA",
-      markValve: async () => {
+      markValve: async (_frame, _url, concept) => {
         calls.push("sam");
+        concepts.push(concept);
         return { kind: "marked", markedFramePath: join(dir, "marked.jpg"), detection: { box: [1, 2, 3, 4], confidence: 0.9, label: "valve", width: 10, height: 10 } } as never;
       },
       publishImage: async () => "https://example.supabase.co/marked.jpg",
       runAgent: async () => ({ reply: "" }),
       ...over,
     };
-    return { pipeline, dir, calls };
+    return { pipeline, dir, calls, frameSeconds, concepts };
   }
 
   it("transcribes a voice note and cleans up the download", async () => {
@@ -217,6 +233,121 @@ describe("createMediaReader", () => {
     assert.equal(reading.valveAdvice, null);
     assert.equal(reading.parts[0]?.type, "text");
     assert.equal(reading.parts[1]?.type, "image_url");
+  });
+
+  it("marks the valve Spark named, on the frame at the second Spark chose", async () => {
+    const { pipeline, frameSeconds, concepts } = await fakePipeline();
+
+    const reading = await createMediaReader(pipeline)(video);
+
+    assert.deepEqual(frameSeconds, [7]);
+    assert.deepEqual(concepts, ["angle valve"]);
+    assert.equal(reading.shutOffWontHelp, false);
+    assert.match(notesOf(reading.parts), /Toilet overflowing onto the floor/);
+  });
+
+  it("gives Spark the whole video and the customer's words", async () => {
+    const seen: unknown[][] = [];
+    const { pipeline } = await fakePipeline({
+      triage: async (...args) => {
+        seen.push(args);
+        return HELPS;
+      },
+    });
+
+    await createMediaReader(pipeline)(video);
+
+    assert.equal(String(seen[0]?.[0]).endsWith("in.mp4"), true);
+    assert.deepEqual(seen[0]?.slice(1), ["video", "help"]);
+  });
+
+  it("looks for no valve and says so when closing the water will not help", async () => {
+    const { pipeline, calls } = await fakePipeline({
+      triage: async () => ({ ...HELPS, problem: "Rain leaking through the roof", waterShutOff: "wont_help", valveObject: null }),
+    });
+
+    const reading = await createMediaReader(pipeline)(video);
+
+    assert.deepEqual(calls, ["frame"]);
+    assert.equal(reading.shutOffWontHelp, true);
+    assert.equal(reading.markedFrameUrl, null);
+    assert.equal(reading.valveAdvice, null);
+    assert.match(notesOf(reading.parts), /Do not tell the customer to close a valve/);
+  });
+
+  it("gives general advice without asking SAM when Spark sees no valve", async () => {
+    const { pipeline, calls } = await fakePipeline({ triage: async () => ({ ...HELPS, valveObject: null }) });
+
+    const reading = await createMediaReader(pipeline)(video);
+
+    assert.deepEqual(calls, ["frame"]);
+    assert.equal(reading.valveAdvice, GENERIC_VALVE_ADVICE);
+    assert.equal(reading.shutOffWontHelp, false);
+  });
+
+  it("asks SAM its own word when the name Spark chose finds nothing", async () => {
+    const asked: (string | undefined)[] = [];
+    const { pipeline } = await fakePipeline({
+      triage: async () => ({ ...HELPS, valveObject: "shut-off valve" }),
+      markValve: async (_frame, _url, concept) => {
+        asked.push(concept);
+        return concept
+          ? { kind: "fallback", advice: "Look under the tank." }
+          : { kind: "marked", markedFramePath: "/tmp/marked.jpg", detection: { frame: 0, objectId: 0, box: { x1: 1, y1: 2, x2: 3, y2: 4 }, width: 9, height: 9, confidence: 0.5 } };
+      },
+    });
+
+    const reading = await createMediaReader(pipeline)(video);
+
+    assert.deepEqual(asked, ["shut-off valve", undefined]);
+    assert.equal(reading.markedFrameUrl, "https://example.supabase.co/marked.jpg");
+  });
+
+  it("keeps the valve search when Spark is unsure", async () => {
+    const { pipeline, calls } = await fakePipeline({ triage: async () => ({ ...HELPS, waterShutOff: "unclear" }) });
+
+    const reading = await createMediaReader(pipeline)(video);
+
+    assert.deepEqual(calls, ["frame", "sam"]);
+    assert.equal(reading.shutOffWontHelp, false);
+  });
+
+  it("falls back to the first frames and SAM's own word when Spark fails, and logs it", async () => {
+    const warnings: string[] = [];
+    const { pipeline, calls, frameSeconds, concepts } = await fakePipeline({
+      triage: async () => {
+        throw new Error("Spark is down");
+      },
+    });
+
+    const reading = await createMediaReader(pipeline, { warn: (message) => warnings.push(message) })(video);
+
+    assert.deepEqual(calls, ["frame", "sam"]);
+    assert.deepEqual(frameSeconds, [undefined]);
+    assert.deepEqual(concepts, [undefined]);
+    assert.equal(reading.markedFrameUrl, "https://example.supabase.co/marked.jpg");
+    assert.match(warnings[0] ?? "", /Spark is down/);
+  });
+
+  it("asks Spark nothing about a voice note or when no valve is needed", async () => {
+    let triaged = 0;
+    const { pipeline } = await fakePipeline({
+      triage: async () => {
+        triaged += 1;
+        return HELPS;
+      },
+    });
+
+    await createMediaReader(pipeline)({ ...video, mediaType: "audio" });
+    const second = await fakePipeline({
+      triage: async () => {
+        triaged += 1;
+        return HELPS;
+      },
+    });
+    await createMediaReader(second.pipeline)({ ...video, findValve: false });
+
+    assert.equal(triaged, 0);
   });
 
   it("skips SAM when no valve is needed and passes on the advice when none was found", async () => {

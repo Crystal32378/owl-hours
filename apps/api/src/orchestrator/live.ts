@@ -42,7 +42,7 @@ export function createRespondDeps(input: {
     store: createConversationStore(input.db),
     directory: createDirectory(input.db),
     understand: (request) => understandNeed(input.chat, request),
-    readMedia: createMediaReader(pipeline),
+    readMedia: createMediaReader(pipeline, input.log),
     answer: async ({ conversationId, history, parts, note }) => {
       const run = await pipeline.runAgent(
         [

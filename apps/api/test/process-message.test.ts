@@ -11,6 +11,9 @@ function fakeDeps(overrides: Partial<PipelineDeps> = {}) {
     downloadMedia: async (mediaId) => `/tmp/${mediaId}`,
     toWav: async (path) => `${path}.wav`,
     transcribe: async () => "Water is coming out under the sink",
+    triage: async () => {
+      throw new Error("processMessage does not triage");
+    },
     extractFrame: async (path) => `${path}.jpg`,
     toDataUrl: async (path) => `data:image/jpeg;base64,${path}`,
     markValve: async () => ({

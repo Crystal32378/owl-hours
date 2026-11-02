@@ -80,6 +80,11 @@ export function waterSafety(input: { markedFrameUrl: string | null; advice: stri
   };
 }
 
+export const shutOffWontHelp = (): ZukkiMessage =>
+  text("Closing your water valve won't stop this one. Keep clear of any outlets or cables near the water while I find you help.", {
+    variant: "safety_text",
+  });
+
 export const cantFindValve = (): ZukkiMessage =>
   text(
     "No problem. Look for the main shut-off where the water line enters your home, often near the water meter, an outside wall or under the kitchen sink. Turn it clockwise until it stops. Stay away from outlets and cables near the water.",

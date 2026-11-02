@@ -2,6 +2,7 @@
 // download -> (voice: WAV + transcribe) | (image/video: frame + SAM valve) -> Spark agent.
 // Every step is injected so the pipeline runs on fakes until credits land;
 // live-deps.ts wires the real Meta Model API and ffmpeg.
+import type { MediaTriage } from "../ai/media-triage.ts";
 import { imagePart, textPart, type ChatMessage, type ContentPart } from "@owl-hours/meta-models";
 import type { ValveResult } from "../ai/valve-step.ts";
 import { AI_DISCLOSURE, CUSTOMER_SYSTEM_PROMPT } from "../agent/customer-agent.ts";
@@ -21,9 +22,13 @@ export type PipelineDeps = {
   downloadMedia: (mediaId: string) => Promise<string>;
   toWav: (audioPath: string) => Promise<string>;
   transcribe: (wavPath: string) => Promise<string>;
-  extractFrame: (videoPath: string) => Promise<string>;
+  // Spark's reading of the whole photo or video, with the customer's own words.
+  triage: (mediaPath: string, mediaType: "image" | "video", caption: string | null) => Promise<MediaTriage>;
+  // atSeconds defaults to a second in.
+  extractFrame: (videoPath: string, atSeconds?: number) => Promise<string>;
   toDataUrl: (imagePath: string) => Promise<string>;
-  markValve: (framePath: string, imageUrl: string) => Promise<ValveResult>;
+  // concept is the object Spark named; markValve has its own word without one.
+  markValve: (framePath: string, imageUrl: string, concept?: string) => Promise<ValveResult>;
   // Uploads the marked frame; returns the URL for payload 04's image header.
   // With sourceMediaId it is also saved as that media's marked_frame row.
   publishImage: (conversationId: string, imagePath: string, sourceMediaId?: string) => Promise<string>;
