@@ -14,28 +14,31 @@ import { Button } from '@astryxdesign/core/Button';
 import { IconButton } from '@astryxdesign/core/IconButton';
 import { TextInput } from '@astryxdesign/core/TextInput';
 import { Check, Pencil } from 'lucide-react';
-import type { ExtraFee, PriceItem } from '../../../shared/data/types';
+import type { ExtraFee, FeeInput, PriceItem } from '../../../shared/data/types';
+import FeeEditor from '../../business/components/FeeEditor';
+import { completeFees, editableFees, fixedFees } from '../../business/lib/feeDraft';
 import { onboardingCopys } from '../copys/onboardingCopys';
 import { completePrices } from '../lib/priceDraft';
-import { feeAmountText, feeLabelText, priceAmountText } from '../lib/priceText';
+import { priceAmountText } from '../lib/priceText';
 import OnboardingFrame from './OnboardingFrame';
 import SetupStepHeader from './SetupStepHeader';
 import ZukkiSays from './ZukkiSays';
 
-// Setup step 2: the prices found on the website, then extra fees, then adding one.
-// Rows are label/value pairs; the edit button switches a row to TextInputs for label
-// and amount, local to the DOM screen, until Continue saves the draft.
+// Setup step 2: the prices found on the website and adding one, then the extra fees
+// (FeeEditor). Rows are label/value pairs; the edit button switches a row to TextInputs
+// for label and amount, local to the DOM screen, until Continue saves both drafts.
 export default function PricesScreen(props: {
   prices: PriceItem[];
   fees: ExtraFee[];
   insets: { top: number; bottom: number };
-  onSave: (prices: PriceItem[]) => Promise<void>;
+  onSave: (prices: PriceItem[], fees: FeeInput[]) => Promise<void>;
   onBack: () => Promise<void>;
   dom?: DOMProps;
 }) {
   const { insets } = props;
   const [draft, setDraft] = useState(props.prices);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [feeDrafts, setFeeDrafts] = useState(() => editableFees(props.fees));
 
   return (
     <OnboardingFrame
@@ -86,27 +89,22 @@ export default function PricesScreen(props: {
           ),
         )}
       </Card>
-      <Text type="label">{onboardingCopys.extraFees}</Text>
-      <Card padding={2}>
-        {props.fees.map((fee) => (
-          <div key={fee.id} style={rowStyle}>
-            <span style={labelStyle}>{feeLabelText(fee)}</span>
-            <span style={amountStyle}>{feeAmountText(fee)}</span>
-          </div>
-        ))}
-      </Card>
       <div>
         <Button label={onboardingCopys.addPrice} variant="ghost" size="lg" icon={<PlusIcon />} onClick={() => addRow()} />
       </div>
+      <Text type="label">{onboardingCopys.extraFees}</Text>
+      <FeeEditor drafts={feeDrafts} fixed={fixedFees(props.fees)} onChange={setFeeDrafts} />
     </OnboardingFrame>
   );
 
   // The stack keeps this screen mounted behind step 3, so Back must show what was saved.
   function saveCompletePrices() {
     const complete = completePrices(draft);
+    const fees = completeFees(feeDrafts);
     setDraft(complete);
+    setFeeDrafts(fees);
     setEditingId(null);
-    return props.onSave(complete);
+    return props.onSave(complete, fees);
   }
 
   // A new price opens in edit mode, never as a dead "$0" row.

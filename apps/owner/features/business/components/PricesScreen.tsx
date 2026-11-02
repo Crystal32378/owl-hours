@@ -23,23 +23,26 @@ import { EmptyState } from '@astryxdesign/core/EmptyState';
 import { ArrowLeft, Plus } from 'lucide-react';
 import { Owl } from '../../../shared/mascot/Owl';
 import owlStatic from '../../../shared/mascot/owl/static';
-import type { ExtraFee, PriceItem } from '../../../shared/data/types.ts';
-import { feeAmountText, feeLabelText, priceAmountText, priceLabelText } from '../lib/priceFields';
+import type { ExtraFee, FeeInput, PriceItem } from '../../../shared/data/types.ts';
+import { completeFees, editableFees, fixedFees, isCompleteFee } from '../lib/feeDraft';
+import { priceAmountText, priceLabelText } from '../lib/priceFields';
 import { isValidPrice } from '../lib/priceValidation';
 import { pricesCopys } from '../copys/pricesCopys';
+import FeeEditor from './FeeEditor';
 
 export default function PricesScreen(props: {
   prices: PriceItem[];
   fees: ExtraFee[];
   insets: { top: number; bottom: number };
   onBack: () => Promise<void>;
-  onSave: (prices: PriceItem[]) => Promise<boolean>;
+  onSave: (prices: PriceItem[], fees: FeeInput[]) => Promise<boolean>;
   dom?: DOMProps;
 }) {
   const { insets } = props;
   const [drafts, setDrafts] = useState<DraftPrice[]>(() => props.prices.map(toDraft));
+  const [feeDrafts, setFeeDrafts] = useState(() => editableFees(props.fees));
   const addedCount = useRef(0);
-  const canSave = drafts.length > 0 && drafts.every(isDraftValid);
+  const canSave = drafts.length > 0 && drafts.every(isDraftValid) && feeDrafts.every(isCompleteFee);
 
   function updateDraft(id: string, patch: Partial<DraftPrice>) {
     setDrafts((current) => current.map((draft) => (draft.id === id ? { ...draft, ...patch } : draft)));
@@ -77,20 +80,6 @@ export default function PricesScreen(props: {
               </VStack>
             )}
           </Card>
-          <Text type="label">{pricesCopys.extraFees}</Text>
-          <Card padding={4}>
-            <VStack gap={0}>
-              {props.fees.map((fee, index) => (
-                <VStack key={fee.id} gap={0}>
-                  {index > 0 && <Divider />}
-                  <div className="zukki-price-row">
-                    <Text type="body">{feeLabelText(fee)}</Text>
-                    <Text type="body" className="zukki-tabular">{feeAmountText(fee)}</Text>
-                  </div>
-                </VStack>
-              ))}
-            </VStack>
-          </Card>
           <div className="zukki-row-action">
             <Button
               label={pricesCopys.addPrice}
@@ -100,6 +89,8 @@ export default function PricesScreen(props: {
               onClick={addPrice}
             />
           </div>
+          <Text type="label">{pricesCopys.extraFees}</Text>
+          <FeeEditor drafts={feeDrafts} fixed={fixedFees(props.fees)} onChange={setFeeDrafts} />
           <div className="zukki-sticky-footer">
             <Button
               label={pricesCopys.save}
@@ -107,7 +98,7 @@ export default function PricesScreen(props: {
               size="lg"
               width="100%"
               isDisabled={!canSave}
-              onClick={() => props.onSave(drafts.map(toPrice))}
+              onClick={() => props.onSave(drafts.map(toPrice), completeFees(feeDrafts))}
             />
           </div>
         </VStack>
