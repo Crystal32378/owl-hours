@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: done
 ---
 # Judge-runnable local run and e2e against a fake WhatsApp
 
@@ -35,4 +35,7 @@ Route: inline; no writer trigger (one behavior chain, each step depends on the l
 - L6 (2026-11-02): left for the user: per MESSAGES.md the customer gets no message after approving a visit; seed handoff 02 has no customer location, so its expired notice fails every 5 s in the local log.
 - L7 (2026-11-02): a second customer in one judge run failed with EADDRNOTAVAIL. Measured about 600 connections a second to :8081 from Expo Go on the simulator, left open by the earlier e2e; closing it gave 3 of 3 customers connected and marked with no missing recording. Replay answers now cycle per key, which a run with several customers needs. The earlier explanation (only the replay's clamped index) was incomplete.
 - L8 (2026-11-02): independent verifier: S3 guard, S7 and S8 pass. Blockers fixed: unknown media got a recorded valve circle (replay now answers frames only right after the triage knew the media); media-flow defaulted to untracked files and EXPECT_NO_READING passed on missing media (now committed samples and a check that the fake serves them). Advisories fixed: shell exports could override the judge run's env; URLs with credentials or other schemes passed; two local servers crashed on bad paths; run-live scripts could reach real WhatsApp (env.sh now refuses). Hidden cards keep the distance, which the owner's handoff row already holds; decision for the user only if it matters.
+- L9 (2026-11-02): native review (lenses risk, reliability) on c1ad4ce..a02840f approved and acknowledged, lineage review-41c27bba13d9bf8f, with 10 non-blocking advisories. Fixed from them in 3c4ec94: malformed local URL, logs kept when the demo customer fails, live check inside judge.sh with a key.
+- L10 (2026-11-02): judge.sh from a clean clone, both modes: no key 2 of 2 customers connected and marked, even with SUPABASE_URL and WHATSAPP_GRAPH_HOST exported in the shell; real key reading plus media-flow PASS. Rejected key: no reading.
+- L11, outcome and next step: not pushed. Pending checks: real WhatsApp run with the new flow; hosted Supabase still lacks 20261102130000; Railway still cannot see Meta's models. Open advisories: media-flow and demo-customer do not check the API's Graph host; replay assumes one customer at a time; `http://localhost:4010` as Graph host makes the fake's 127.0.0.1 media URLs refused. Product decisions for the user: no customer message after approving a visit; fixed copy stays in English next to a Spanish reading; a failed reading sends the category list with no explanation. Next: open chained PRs, record the demo video.
 
