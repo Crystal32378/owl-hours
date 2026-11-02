@@ -1,6 +1,7 @@
 // Spark's reading of a customer's photo or video (odd/tasks/whatsapp-media-triage.md S3, S5).
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { CATEGORIES } from "@owl-hours/shared";
 import { locateValves, triageMedia } from "../src/ai/media-triage.ts";
 
 const OVERFLOW = {
@@ -49,6 +50,24 @@ describe("triageMedia", () => {
     );
 
     assert.match(prompts[0] ?? "", /never answer wont_help because you cannot see it/);
+  });
+
+  it("covers every category and carries the safety rules, whatever the media shows", async () => {
+    const prompts: string[] = [];
+
+    await triageMedia(
+      async (input) => {
+        prompts.push(input.prompt);
+        return JSON.stringify(OVERFLOW);
+      },
+      { mediaType: "image", mediaUrl: "u", caption: null },
+    );
+
+    for (const category of CATEGORIES) assert.match(prompts[0] ?? "", new RegExp(category));
+    assert.match(prompts[0] ?? "", /exposed wires/);
+    assert.match(prompts[0] ?? "", /smell gas/);
+    assert.match(prompts[0] ?? "", /Never diagnose a pet or a person/);
+    assert.match(prompts[0] ?? "", /wont_help when .* not about water/);
   });
 
   it("treats a valve name made only of spaces as no valve", async () => {

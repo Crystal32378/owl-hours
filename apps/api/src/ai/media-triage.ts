@@ -1,8 +1,9 @@
-// Spark reads the customer's whole photo or video before anything else looks at it: what is wrong,
-// whether closing the water would stop it, and where SAM should look for the valve
+// Spark reads the customer's whole photo or video, in any category, before anything else looks at it:
+// what is wrong, what to do now, whether closing the water would stop it, and where SAM should look
 // (https://dev.meta.ai/docs/sam/segmenting: SAM locates what it is told to, Spark reasons about the scene).
 import { z } from "zod";
 import type { UnderstandMediaInput } from "@owl-hours/meta-models";
+import { CATEGORIES } from "@owl-hours/shared";
 
 const SEVERITIES = ["emergency", "urgent", "routine", "none"] as const;
 const SHUT_OFF_ANSWERS = ["helps", "wont_help", "unclear"] as const;
@@ -35,12 +36,12 @@ const TRIAGE_JSON_SCHEMA = {
 };
 
 const TRIAGE_PROMPT = [
-  "A customer sent this to a home-repair assistant. Describe only what is visible or audible; do not assume a cause you cannot see.",
-  "problem: one short sentence on what is wrong.",
-  "customerMessage: for the customer, in the language they wrote in (English if they wrote nothing), one or two short plain sentences: what you see and what they can do right now. No prices, no business names, and no promise that help is on the way.",
-  "severity: emergency when water or danger is spreading now, urgent when it needs help today, routine when it can wait, none when nothing is wrong.",
-  "waterShutOff: helps when closing a water supply valve would stop this problem. wont_help when it clearly would not, such as rain, a roof or gutter, an old stain, or nothing wrong. unclear in every other case, and whenever you doubt. If the customer says water is leaking or flowing from a pipe, faucet, toilet or fixture, never answer wont_help because you cannot see it: answer helps, or unclear if their words leave it open.",
-  "valveObject: the shortest plain noun for a water shut-off valve you can clearly see, such as valve. Null when none is clearly visible.",
+  `A customer sent this to an assistant that connects them with local businesses for ${CATEGORIES.join(", ")}. Describe only what is visible or audible; do not assume a cause you cannot see.`,
+  "problem: one short sentence on what is wrong or what they need.",
+  "customerMessage: for the customer, in the language they wrote in (English if they wrote nothing), one or two short plain sentences: what you see and what they can safely do right now. Say the safe thing first when there is danger: stay away from exposed wires and from water near them, leave and call for help if they smell gas, do not drive a car that is leaking or unsafe. Never diagnose a pet or a person: suggest they see the professional. No prices, no business names, and no promise that help is on the way.",
+  "severity: emergency when danger or damage is spreading now, urgent when it needs help today, routine when it can wait, none when nothing is wrong.",
+  "waterShutOff: helps when closing a water supply valve would stop this problem. wont_help when it clearly would not, such as rain, a roof or gutter, an old stain, nothing wrong, or anything not about water. unclear in every other case, and whenever you doubt. If the customer says water is leaking or flowing from a pipe, faucet, toilet or fixture, never answer wont_help because you cannot see it: answer helps, or unclear if their words leave it open.",
+  "valveObject: only for a water problem, the shortest plain noun for a water shut-off valve you can clearly see, such as valve. Null otherwise.",
   "bestSeconds: for a video, the sharpest second where the camera is closest while every valve you saw stays fully inside the frame, none cut by an edge. With no valve, the second where the problem is clearest. Null for a photo.",
 ].join("\n");
 

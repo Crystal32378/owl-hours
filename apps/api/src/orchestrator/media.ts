@@ -1,6 +1,6 @@
-// Reads a stored photo, video or voice note for the orchestrator: voice is transcribed. When the
-// need may be a leak, Spark reads the whole photo or video first: it says whether closing the water
-// helps, and picks the frame and the object SAM marks. The download's temp folder is always removed.
+// Reads a stored photo, video or voice note for the orchestrator: voice is transcribed. Spark reads
+// any whole photo or video first and writes what to tell the customer. When the need may be a leak it
+// also says whether closing the water helps and picks the frame SAM marks. The temp folder is always removed.
 import { rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, dirname } from "node:path";
@@ -40,7 +40,7 @@ async function read(pipeline: PipelineDeps, log: Warn, path: string, input: Read
     };
   }
   const mediaType = input.mediaType;
-  const triage = input.findValve ? await triageOrNull(pipeline, log, path, mediaType, input) : null;
+  const triage = await triageOrNull(pipeline, log, path, mediaType, input);
   const framePath = mediaType === "video" ? await frameOf(pipeline, path, triage) : path;
   const imageUrl = await pipeline.toDataUrl(framePath);
   const parts: ContentPart[] = [
@@ -48,7 +48,7 @@ async function read(pipeline: PipelineDeps, log: Warn, path: string, input: Read
     imagePart(imageUrl),
     ...(triage ? [textPart(`Pipeline note: the customer's media shows: ${triage.problem} Severity: ${triage.severity}.`)] : []),
   ];
-  const wontHelp = triage?.waterShutOff === "wont_help";
+  const wontHelp = input.findValve && triage?.waterShutOff === "wont_help";
   if (wontHelp) {
     parts.push(textPart("Pipeline note: closing a water valve will not stop this. Do not tell the customer to close a valve to stop it."));
   }

@@ -152,7 +152,7 @@ async function onMessage(deps: RespondDeps, ctx: TurnContext, turn: Extract<Turn
   if (turn.kind === "media") {
     const findValve = facts.category === null || facts.category === "plumbing";
     // Reading a video takes up to a minute, longer than WhatsApp's typing indicator lasts.
-    if (findValve && turn.mediaType !== "audio") await queue(copy.lookingAtMedia());
+    if (turn.mediaType !== "audio") await queue(copy.lookingAtMedia());
     const reading = await deps.readMedia({ conversationId: ctx.conversationId, mediaId: turn.mediaId, mediaType: turn.mediaType, caption: turn.caption, findValve });
     if (reading.transcript) await deps.store.saveTranscript(turn.mediaId, reading.transcript);
     ({ parts, markedFrameUrl, valveAdvice, shutOffWontHelp, analysis, serious } = reading);

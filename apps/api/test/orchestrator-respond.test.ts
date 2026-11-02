@@ -255,14 +255,40 @@ describe("respond: urgent leak", () => {
     assert.deepEqual(buttonIds(queued[1]), ["safety_done", "safety_cant_find"]);
   });
 
-  it("sends the notice only for a photo or video it will read", async () => {
+  it("sends the notice for a photo or video in any category, but not for a voice note", async () => {
     const voice = setup({ understanding: { category: "plumbing", urgent: false } });
     await respond(voice.deps, ctx(), { kind: "media", mediaId: MEDIA, mediaType: "audio", caption: null });
     assert.doesNotMatch(voice.queued[0]?.message.body ?? "", /looking at what you sent/);
 
     const salon = setup({ facts: { category: "beauty" }, understanding: { category: "beauty", urgent: false } });
     await respond(salon.deps, ctx(), { kind: "media", mediaId: MEDIA, mediaType: "image", caption: null });
-    assert.doesNotMatch(salon.queued[0]?.message.body ?? "", /looking at what you sent/);
+    assert.match(salon.queued[0]?.message.body ?? "", /looking at what you sent/);
+  });
+
+  it("tells a customer in another category what it saw, and only looks for a valve in plumbing", async () => {
+    const { deps, queued, asked } = setup({
+      facts: { category: "auto" },
+      understanding: { category: "auto", urgent: false },
+      reading: { analysis: "I can see a dent in your rear bumper." },
+    });
+
+    await respond(deps, ctx(), { kind: "media", mediaId: MEDIA, mediaType: "image", caption: null });
+
+    assert.equal(asked.findValve, false);
+    assert.equal(queued[1]?.message.body, "I can see a dent in your rear bumper.");
+  });
+
+  it("gives the electrical safety step when Spark saw something serious", async () => {
+    const { deps, queued } = setup({
+      facts: { category: "electrical" },
+      understanding: { category: "electrical", urgent: false },
+      reading: { analysis: "I can see a burnt outlet. Please don't touch it.", serious: true },
+    });
+
+    await respond(deps, ctx(), { kind: "media", mediaId: MEDIA, mediaType: "image", caption: null });
+
+    assert.equal(queued[1]?.message.body, "I can see a burnt outlet. Please don't touch it.");
+    assert.equal(queued[2]?.message.payload?.variant, "safety_text");
   });
 
   it("never says to close a valve when that will not stop the water, and moves on to the location", async () => {
