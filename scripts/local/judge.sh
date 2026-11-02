@@ -75,7 +75,15 @@ for url in http://localhost:3000/health http://127.0.0.1:4010/sent http://localh
 done
 
 echo; echo "A customer sends a leak video:"
-node scripts/e2e/demo-customer.mjs
+node scripts/e2e/demo-customer.mjs || {
+  echo "The demo customer failed. Last lines of the API log:" >&2
+  tail -n 30 "$run_dir/api.log" >&2
+  exit 1
+}
+if [ -z "${META_MODEL_BASE_URL:-}" ]; then
+  echo; echo "Checking that replies come from the models (two different media):"
+  node scripts/e2e/media-flow.mjs
+fi
 
 cat <<INFO
 

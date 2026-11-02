@@ -51,7 +51,7 @@ META_MODEL_API_KEY=your-key bash scripts/local/judge.sh
 
 The sample video is made from a generated picture (`muse-image-1.0`), not a real home.
 
-To check the replies come from the models, with a key and the stand-ins running: `node scripts/e2e/media-flow.mjs` (it needs `META_APP_SECRET` and `WHATSAPP_PHONE_NUMBER_ID`, the same values the API uses). It sends two different media and fails if they get the same reading.
+With a key, the run also sends two different media and fails if they get the same reading (`scripts/e2e/media-flow.mjs`), which shows the replies come from the models.
 
 ---
 

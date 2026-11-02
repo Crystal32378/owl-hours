@@ -12,6 +12,7 @@ const loopbackUrl = z.preprocess(
 );
 
 function isPlainLoopbackUrl(url: string): boolean {
+  if (!URL.canParse(url)) return false;
   const { protocol, hostname, username, password } = new URL(url);
   return ["http:", "https:"].includes(protocol) && LOOPBACK_HOSTNAMES.includes(hostname) && !username && !password;
 }
