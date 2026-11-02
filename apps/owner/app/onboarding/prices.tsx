@@ -23,8 +23,9 @@ export default function PricesRoute() {
       prices={view.prices}
       fees={view.fees}
       insets={safeInsets}
-      onSave={async (draft) => {
+      onSave={async (draft, fees) => {
         await view.savePrices(draft);
+        await view.saveFees(fees);
         router.push(resolveNext('/onboarding/prices', 'next'));
       }}
       onBack={async () => { router.back(); }}

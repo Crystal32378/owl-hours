@@ -90,6 +90,17 @@ describe("onboardingService round-trips", () => {
     assert.deepEqual(await service.getPrices(), mockBusiness.prices);
   });
 
+  it("fees round-trip: the saved fees read back with the demo parts at cost", async () => {
+    const service = buildService();
+
+    await service.saveFees([{ id: "f-new-1", label: "Holiday", amount: 20, atNight: false }]);
+
+    assert.deepEqual(await service.getFees(), [
+      { id: "f-new-1", label: "Holiday", amount: 20, atNight: false },
+      { id: "f3", label: "Parts", amount: "at_cost" },
+    ]);
+  });
+
   it("area round-trips", async () => {
     const service = buildService();
 

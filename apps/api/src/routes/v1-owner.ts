@@ -107,6 +107,23 @@ const pricesBody = z
       .refine(hasDistinctIds, "each price id appears once"),
   })
   .strict();
+const feesBody = z
+  .object({
+    fees: z
+      .array(
+        z
+          .object({
+            id: z.string().min(1).max(64).optional(),
+            label: z.string().trim().min(1).max(80),
+            amount: z.number().int().positive().max(MAX_PRICE),
+            atNight: z.boolean(),
+          })
+          .strict(),
+      )
+      .max(20)
+      .refine(hasDistinctIds, "each fee id appears once"),
+  })
+  .strict();
 const clockTime = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "must be HH:MM");
 const hoursBody = z
   .object({
@@ -148,6 +165,10 @@ export function ownerRoutes(deps: V1Deps): Hono<OwnerEnv> {
   app.put("/business/prices", async (c) => {
     const body = await readJson(c, pricesBody);
     return ok(c, await owner.savePrices(c.get("session"), body.prices));
+  });
+  app.put("/business/fees", async (c) => {
+    const body = await readJson(c, feesBody);
+    return ok(c, await owner.saveFees(c.get("session"), body.fees));
   });
   app.put("/business/hours", async (c) => {
     const body = await readJson(c, hoursBody);
@@ -251,8 +272,8 @@ export function ownerRoutes(deps: V1Deps): Hono<OwnerEnv> {
   return app;
 }
 
-function hasDistinctIds(prices: { id?: string | undefined }[]): boolean {
-  const ids = prices.flatMap((price) => (price.id ? [price.id] : []));
+function hasDistinctIds(rows: { id?: string | undefined }[]): boolean {
+  const ids = rows.flatMap((row) => (row.id ? [row.id] : []));
   return new Set(ids).size === ids.length;
 }
 

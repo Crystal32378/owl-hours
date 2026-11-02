@@ -23,8 +23,9 @@ export default function PricesRoute() {
       fees={view.fees}
       insets={safeInsets}
       onBack={async () => router.back()}
-      onSave={async (updated) => {
-        if (!(await view.savePrices(updated))) return false;
+      onSave={async (updatedPrices, updatedFees) => {
+        if (!(await view.savePrices(updatedPrices))) return false;
+        if (!(await view.saveFees(updatedFees))) return false;
         router.back();
         return true;
       }}

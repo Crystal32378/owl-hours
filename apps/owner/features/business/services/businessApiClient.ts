@@ -1,5 +1,5 @@
 import type { OwnerEditApi } from "../../../shared/infra/ownerApi.ts";
-import type { Business, ExtraFee, ID, LinkedAccount, PriceItem } from "../../../shared/data/types.ts";
+import type { Business, ExtraFee, FeeInput, ID, LinkedAccount, PriceItem } from "../../../shared/data/types.ts";
 import { hoursSummary } from "../lib/hoursSummary.ts";
 import type { OpeningHours } from "../lib/hoursSummary.ts";
 import type { BusinessClient } from "./businessService.ts";
@@ -15,7 +15,7 @@ type ApiBusiness = {
   rating: { value: number | null; count: number };
   technicians: number;
   prices: PriceItem[];
-  fees: { id: ID; label: string; amount: number | "at_cost"; window?: string }[];
+  fees: { id: ID; label: string; amount: number | "at_cost"; window?: string; atNight: boolean }[];
   hours: OpeningHours[];
   nightJobs: boolean;
   area: { lat: number; lng: number; radiusKm: number } | null;
@@ -37,6 +37,11 @@ export function createBusinessApiClient(api: OwnerEditApi): BusinessClient {
     return toBusiness((await api.put("/business/prices", { prices: listed })) as ApiBusiness);
   }
 
+  async function putFees(fees: FeeInput[]): Promise<Business> {
+    const listed = fees.map(({ id, label, amount, atNight }) => ({ id, label, amount, atNight }));
+    return toBusiness((await api.put("/business/fees", { fees: listed })) as ApiBusiness);
+  }
+
   async function patchTakingRequests(takingRequests: boolean): Promise<boolean> {
     const saved = (await api.patch("/business", { takingRequests })) as ApiBusiness;
     return saved.takingRequests;
@@ -45,6 +50,7 @@ export function createBusinessApiClient(api: OwnerEditApi): BusinessClient {
   return {
     loadBusiness: async () => toBusiness(await readBusiness()),
     storePrices: putPrices,
+    storeFees: putFees,
     loadSettings: async () => ({ takingRequests: (await readBusiness()).takingRequests }),
     storeSettings: async (settings) => ({ takingRequests: await patchTakingRequests(settings.takingRequests) }),
     loadAccounts: async () => (await readBusiness()).linkedAccounts.map(toLinkedAccount),
@@ -81,7 +87,8 @@ function toBusiness(row: ApiBusiness): Business {
 const NO_AREA = { center: { lat: 0, lng: 0 }, radiusKm: 0 };
 
 function toFee(fee: ApiBusiness["fees"][number]): ExtraFee {
-  return fee.window ? { id: fee.id, label: fee.label, amount: fee.amount, window: fee.window } : { id: fee.id, label: fee.label, amount: fee.amount };
+  const listed = { id: fee.id, label: fee.label, amount: fee.amount, atNight: fee.atNight };
+  return fee.window ? { ...listed, window: fee.window } : listed;
 }
 
 function toLinkedAccount(account: ApiBusiness["linkedAccounts"][number]): LinkedAccount {

@@ -155,6 +155,7 @@ export type BusinessChanges = {
 };
 export type NewBusiness = { name: string; category: string; website?: string | undefined; ownerName?: string | undefined };
 export type PriceInput = { id?: string | undefined; label: string; amount: number };
+export type FeeInput = { id?: string | undefined; label: string; amount: number; atNight: boolean };
 export type HoursInput = { weekday: number; opens: string; closes: string };
 export type AreaInput = { lat: number; lng: number; radiusKm: number };
 
@@ -186,6 +187,10 @@ export async function updateBusiness(s: OwnerSession, changes: BusinessChanges) 
 
 export async function savePrices(s: OwnerSession, prices: PriceInput[]) {
   return businessOrNotFound(unwrap(await s.db.rpc("owner_save_prices", { p_prices: prices })));
+}
+
+export async function saveFees(s: OwnerSession, fees: FeeInput[]) {
+  return businessOrNotFound(unwrap(await s.db.rpc("owner_save_fees", { p_fees: fees })));
 }
 
 export async function saveHours(s: OwnerSession, hours: HoursInput[]) {

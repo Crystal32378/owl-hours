@@ -2,8 +2,8 @@
 // onboarding steps save to the owner API (fetch injected through
 // createOwnerApi): the business step creates the business with POST /business,
 // prices and area go through PUT /business/prices and /business/area, the
-// night switch through PATCH /business, and fees and the hours summary are
-// read from GET /business. Website import offers nothing: apps/api has no importer.
+// night switch through PATCH /business, fees through PUT /business/fees, and
+// the fees and the hours summary are read from GET /business. Website import offers nothing: apps/api has no importer.
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { business as mockBusiness } from "../../../shared/data/mock.ts";
@@ -33,7 +33,7 @@ const eastside = {
   rating: { value: null, count: 0 },
   technicians: 0,
   prices: [{ id: "p-visit", label: "Visit", amount: 40, from: false }],
-  fees: [{ id: "p-night", label: "Night fee", amount: 30, window: "9 PM-6 AM" }],
+  fees: [{ id: "p-night", label: "Night fee", amount: 30, window: "9 PM-6 AM", atNight: true }],
   hours: [1, 2, 3, 4, 5].map((weekday) => ({ weekday, opens: "09:00", closes: "17:00" })),
   nightJobs: false,
   area: { lat: 21.16, lng: -86.85, radiusKm: 12 },
@@ -119,7 +119,7 @@ describe("live onboarding prices step", () => {
     const { service } = liveOnboarding();
 
     assert.deepEqual(await service.getPrices(), eastside.prices);
-    assert.deepEqual(await service.getFees(), [{ id: "p-night", label: "Night fee", amount: 30, window: "9 PM-6 AM" }]);
+    assert.deepEqual(await service.getFees(), eastside.fees);
   });
 
   it("saves the prices through PUT /business/prices", async () => {
@@ -137,6 +137,18 @@ describe("live onboarding prices step", () => {
         body: { prices: [{ id: "p-visit", label: "Visit", amount: 45 }, { id: "new-1", label: "Descale", amount: 90 }] },
       },
     ]);
+  });
+
+  it("saves the fees through PUT /business/fees", async () => {
+    const { service, calls } = liveOnboarding();
+    const fees = [
+      { id: "p-night", label: "Night fee", amount: 35, atNight: true },
+      { id: "f-new-1", label: "Weekend", amount: 15, atNight: false },
+    ];
+
+    await service.saveFees(fees);
+
+    assert.deepEqual(writes(calls), [{ method: "PUT", url: `${BUSINESS_URL}/fees`, body: { fees } }]);
   });
 
   it("a new business has no prices and no fees", async () => {

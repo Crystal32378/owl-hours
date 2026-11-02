@@ -1,7 +1,8 @@
 import { accounts as seedAccounts, business as seedBusiness } from "../../../shared/data/mock.ts";
-import type { Business, LinkedAccount, PriceItem } from "../../../shared/data/types.ts";
+import type { Business, FeeInput, LinkedAccount, PriceItem } from "../../../shared/data/types.ts";
 import type { BusinessRowExtras } from "../lib/businessRows.ts";
 import { BUSINESS_DEMO } from "../lib/businessRows.ts";
+import { isCompleteFee, withSavedFees } from "../lib/feeDraft.ts";
 import { isValidPrice } from "../lib/priceValidation.ts";
 
 // The settings switches of OwSettings. Field names are the coder's;
@@ -19,6 +20,7 @@ export type BusinessSettings = {
 export type BusinessClient = {
   loadBusiness: () => Promise<Business>;
   storePrices: (prices: PriceItem[]) => Promise<Business>;
+  storeFees: (fees: FeeInput[]) => Promise<Business>;
   loadSettings: () => Promise<BusinessSettings>;
   storeSettings: (settings: BusinessSettings) => Promise<BusinessSettings>;
   loadAccounts: () => Promise<LinkedAccount[]>;
@@ -28,6 +30,7 @@ export type BusinessClient = {
 export type BusinessService = {
   getBusiness: () => Promise<Business>;
   savePrices: (prices: PriceItem[]) => Promise<Business | null>;
+  saveFees: (fees: FeeInput[]) => Promise<Business | null>;
   getSettings: () => Promise<BusinessSettings>;
   saveSettings: (settings: BusinessSettings) => Promise<BusinessSettings>;
   getAccounts: () => Promise<LinkedAccount[]>;
@@ -38,6 +41,7 @@ export function createBusinessService(client: BusinessClient): BusinessService {
   return {
     getBusiness: () => client.loadBusiness(),
     savePrices: (prices) => saveValidPrices(client, prices),
+    saveFees: (fees) => saveCompleteFees(client, fees),
     getSettings: () => client.loadSettings(),
     saveSettings: (settings) => client.storeSettings({ ...settings }),
     getAccounts: () => client.loadAccounts(),
@@ -50,6 +54,13 @@ async function saveValidPrices(client: BusinessClient, prices: PriceItem[]): Pro
   if (!prices.every((price) => isValidPrice(price.amount))) return null;
 
   return client.storePrices(structuredClone(prices));
+}
+
+// A fee list with a fee left without a name or at $0 saves nothing.
+async function saveCompleteFees(client: BusinessClient, fees: FeeInput[]): Promise<Business | null> {
+  if (!fees.every(isCompleteFee)) return null;
+
+  return client.storeFees(structuredClone(fees));
 }
 
 // Module-level demo service shared by the default deps of useBusiness,
@@ -75,6 +86,10 @@ export function createFakeBusinessClient(): BusinessClient {
     loadBusiness: async () => structuredClone(business),
     storePrices: async (prices) => {
       business = { ...business, prices: structuredClone(prices) };
+      return structuredClone(business);
+    },
+    storeFees: async (fees) => {
+      business = { ...business, fees: withSavedFees(business.fees, fees) };
       return structuredClone(business);
     },
     loadSettings: async () => ({ ...settings }),
