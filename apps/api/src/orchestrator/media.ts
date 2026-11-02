@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { basename, dirname } from "node:path";
 import { imagePart, textPart, type ContentPart } from "@owl-hours/meta-models";
 import type { MediaTriage } from "../ai/media-triage.ts";
-import { GENERIC_VALVE_ADVICE, VALVE_CONCEPT, type ValveResult } from "../ai/valve-step.ts";
+import { GENERIC_VALVE_ADVICE, type ValveResult } from "../ai/valve-step.ts";
 import { describeValve, type PipelineDeps } from "../worker/process-message.ts";
 import type { MediaReading, RespondDeps } from "./types.ts";
 
@@ -35,6 +35,8 @@ async function read(pipeline: PipelineDeps, log: Warn, path: string, input: Read
       markedFrameUrl: null,
       valveAdvice: null,
       shutOffWontHelp: false,
+      analysis: null,
+      serious: false,
     };
   }
   const mediaType = input.mediaType;
@@ -46,18 +48,28 @@ async function read(pipeline: PipelineDeps, log: Warn, path: string, input: Read
     imagePart(imageUrl),
     ...(triage ? [textPart(`Pipeline note: the customer's media shows: ${triage.problem} Severity: ${triage.severity}.`)] : []),
   ];
-  const reading = { parts, transcript: null, markedFrameUrl: null, valveAdvice: null, shutOffWontHelp: false };
-  if (!input.findValve) return reading;
-  if (triage?.waterShutOff === "wont_help") {
-    parts.push(textPart("Pipeline note: closing a water valve will not stop this. Do not tell the customer to close a valve."));
-    return { ...reading, shutOffWontHelp: true };
+  const wontHelp = triage?.waterShutOff === "wont_help";
+  if (wontHelp) {
+    parts.push(textPart("Pipeline note: closing a water valve will not stop this. Do not tell the customer to close a valve to stop it."));
   }
+  const reading = {
+    parts,
+    transcript: null,
+    markedFrameUrl: null,
+    valveAdvice: null,
+    shutOffWontHelp: wontHelp,
+    analysis: triage?.customerMessage ?? null,
+    serious: triage?.severity === "emergency" || triage?.severity === "urgent",
+  };
+  if (!input.findValve || triage?.severity === "none" || (wontHelp && !triage?.valveObject)) return reading;
   const valve = await findValve(pipeline, log, framePath, imageUrl, triage);
-  parts.push(textPart(describeValve(valve)));
   if (valve.kind === "marked") {
+    parts.push(textPart(describeValve(valve)));
     const markedFrameUrl = await pipeline.publishImage(input.conversationId, valve.markedFramePath, input.mediaId);
     return { ...reading, markedFrameUrl };
   }
+  if (wontHelp) return reading;
+  parts.push(textPart(describeValve(valve)));
   return { ...reading, valveAdvice: valve.advice };
 }
 
@@ -81,8 +93,8 @@ function frameOf(pipeline: PipelineDeps, path: string, triage: MediaTriage | nul
   return triage?.bestSeconds == null ? pipeline.extractFrame(path) : pipeline.extractFrame(path, triage.bestSeconds);
 }
 
-// SAM finds what it is told to, so a valve Spark did not see is not worth asking for.
-// It answers nothing for some longer names of a valve it can see, such as "shut-off valve".
+// A valve Spark did not see is not worth asking for, and a failed SAM call costs
+// the customer the circle, never the advice.
 async function findValve(
   pipeline: PipelineDeps,
   log: Warn,
@@ -90,25 +102,9 @@ async function findValve(
   imageUrl: string,
   triage: MediaTriage | null,
 ): Promise<ValveResult> {
-  const named = triage?.valveObject ?? undefined;
-  if (triage && !named) return { kind: "fallback", advice: GENERIC_VALVE_ADVICE };
-  const mark = (concept?: string) => markOrAdvice(pipeline, log, framePath, imageUrl, concept);
-  const first = await mark(named);
-  if (first.kind === "marked" || !named || named === VALVE_CONCEPT) return first;
-  const second = await mark();
-  return second.kind === "marked" ? second : first;
-}
-
-// A failed SAM call costs the customer the circle, never the advice.
-async function markOrAdvice(
-  pipeline: PipelineDeps,
-  log: Warn,
-  framePath: string,
-  imageUrl: string,
-  concept?: string,
-): Promise<ValveResult> {
+  if (triage && !triage.valveObject) return { kind: "fallback", advice: GENERIC_VALVE_ADVICE };
   try {
-    return await pipeline.markValve(framePath, imageUrl, concept);
+    return await pipeline.markValve(framePath, imageUrl, triage?.valveObject ?? undefined);
   } catch (error) {
     log.warn(`zukki: valve marking failed: ${error instanceof Error ? error.message : String(error)}`);
     return { kind: "fallback", advice: GENERIC_VALVE_ADVICE };

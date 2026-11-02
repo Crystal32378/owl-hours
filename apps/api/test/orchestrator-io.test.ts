@@ -181,6 +181,7 @@ describe("createConversationStore", () => {
 describe("createMediaReader", () => {
   const HELPS = {
     problem: "Toilet overflowing onto the floor",
+    customerMessage: "Your toilet is overflowing. Close the valve.",
     severity: "emergency",
     waterShutOff: "helps",
     valveObject: "angle valve",
@@ -271,7 +272,7 @@ describe("createMediaReader", () => {
     assert.deepEqual(seen[0]?.slice(1), ["video", "help"]);
   });
 
-  it("looks for no valve and says so when closing the water will not help", async () => {
+  it("says closing the water will not help, and asks SAM nothing when no valve is visible", async () => {
     const { pipeline, calls } = await fakePipeline({
       triage: async () => ({ ...HELPS, problem: "Rain leaking through the roof", waterShutOff: "wont_help", valveObject: null }),
     });
@@ -295,68 +296,63 @@ describe("createMediaReader", () => {
     assert.equal(reading.shutOffWontHelp, false);
   });
 
-  it("asks SAM its own word when the name Spark chose finds nothing", async () => {
-    const asked: (string | undefined)[] = [];
+  it("gives the customer Spark's message and says when the need is serious", async () => {
+    const { pipeline } = await fakePipeline();
+
+    const reading = await createMediaReader(pipeline)(video);
+
+    assert.equal(reading.analysis, "Your toilet is overflowing. Close the valve.");
+    assert.equal(reading.serious, true);
+  });
+
+  it("says nothing extra when Spark could not read the media", async () => {
     const { pipeline } = await fakePipeline({
-      triage: async () => ({ ...HELPS, valveObject: "shut-off valve" }),
-      markValve: async (_frame, _url, concept) => {
-        asked.push(concept);
-        return concept
-          ? { kind: "fallback", advice: "Look under the tank." }
-          : { kind: "marked", markedFramePath: "/tmp/marked.jpg", detection: { frame: 0, objectId: 0, box: { x1: 1, y1: 2, x2: 3, y2: 4 }, width: 9, height: 9, confidence: 0.5 } };
+      triage: async () => {
+        throw new Error("Spark is down");
       },
+    });
+
+    const reading = await createMediaReader(pipeline, { warn: () => {} })(video);
+
+    assert.equal(reading.analysis, null);
+    assert.equal(reading.serious, false);
+  });
+
+  it("marks a visible valve even when closing it will not stop this leak", async () => {
+    const { pipeline, calls } = await fakePipeline({
+      triage: async () => ({ ...HELPS, problem: "Drain leaking into a bucket", severity: "routine", waterShutOff: "wont_help" }),
     });
 
     const reading = await createMediaReader(pipeline)(video);
 
-    assert.deepEqual(asked, ["shut-off valve", undefined]);
+    assert.deepEqual(calls, ["frame", "sam"]);
     assert.equal(reading.markedFrameUrl, "https://example.supabase.co/marked.jpg");
+    assert.equal(reading.shutOffWontHelp, true);
+    assert.equal(reading.serious, false);
   });
 
-  it("gives the general advice when both SAM tries find nothing", async () => {
-    const { pipeline } = await fakePipeline({ markValve: async () => ({ kind: "fallback", advice: "Look under the tank." }) });
+  it("marks nothing when nothing is wrong", async () => {
+    const { pipeline, calls } = await fakePipeline({
+      triage: async () => ({ ...HELPS, problem: "No leak", severity: "none", waterShutOff: "wont_help" }),
+    });
 
     const reading = await createMediaReader(pipeline)(video);
 
+    assert.deepEqual(calls, ["frame"]);
     assert.equal(reading.markedFrameUrl, null);
-    assert.equal(reading.valveAdvice, "Look under the tank.");
   });
 
-  it("asks SAM once when Spark already used SAM's own word", async () => {
-    let asks = 0;
-    const { pipeline } = await fakePipeline({
-      triage: async () => ({ ...HELPS, valveObject: "valve" }),
-      markValve: async () => {
-        asks += 1;
-        return { kind: "fallback", advice: "Look under the tank." };
-      },
-    });
-
-    await createMediaReader(pipeline)(video);
-
-    assert.equal(asks, 1);
-  });
-
-  it("gives the general advice and logs it when SAM fails, whichever try it is", async () => {
+  it("gives the general advice and logs it when SAM fails", async () => {
     const warnings: string[] = [];
-    let asks = 0;
     const { pipeline } = await fakePipeline({
       markValve: async () => {
-        asks += 1;
-        if (asks === 1) return { kind: "fallback", advice: "Look under the tank." };
         throw new Error("SAM is down");
       },
     });
-    const failing = await fakePipeline({
-      markValve: async () => {
-        throw new Error("SAM is down");
-      },
-    });
-    const reader = (p: PipelineDeps) => createMediaReader(p, { warn: (message) => warnings.push(message) });
 
-    assert.equal((await reader(pipeline)(video)).valveAdvice, "Look under the tank.");
-    assert.equal((await reader(failing.pipeline)(video)).valveAdvice, GENERIC_VALVE_ADVICE);
-    assert.equal(warnings.length, 3);
+    const reading = await createMediaReader(pipeline, { warn: (message) => warnings.push(message) })(video);
+
+    assert.equal(reading.valveAdvice, GENERIC_VALVE_ADVICE);
     assert.match(warnings[0] ?? "", /SAM is down/);
   });
 

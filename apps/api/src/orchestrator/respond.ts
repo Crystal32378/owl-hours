@@ -147,11 +147,15 @@ async function onMessage(deps: RespondDeps, ctx: TurnContext, turn: Extract<Turn
   let markedFrameUrl: string | null = null;
   let valveAdvice: string | null = null;
   let shutOffWontHelp = false;
+  let analysis: string | null = null;
+  let serious = false;
   if (turn.kind === "media") {
     const findValve = facts.category === null || facts.category === "plumbing";
+    // Reading a video takes up to a minute, longer than WhatsApp's typing indicator lasts.
+    if (findValve && turn.mediaType !== "audio") await queue(copy.lookingAtMedia());
     const reading = await deps.readMedia({ conversationId: ctx.conversationId, mediaId: turn.mediaId, mediaType: turn.mediaType, caption: turn.caption, findValve });
     if (reading.transcript) await deps.store.saveTranscript(turn.mediaId, reading.transcript);
-    ({ parts, markedFrameUrl, valveAdvice, shutOffWontHelp } = reading);
+    ({ parts, markedFrameUrl, valveAdvice, shutOffWontHelp, analysis, serious } = reading);
   } else {
     parts = [textPart(turn.text)];
   }
@@ -174,7 +178,7 @@ async function onMessage(deps: RespondDeps, ctx: TurnContext, turn: Extract<Turn
     await queue(copy.categoryList());
     return;
   }
-  const urgent = known ? facts.urgency === "now" : understanding.urgent;
+  const urgent = serious || (known ? facts.urgency === "now" : understanding.urgent);
   // A category picked from the list is saved without a title; the description
   // that follows names the request the business sees on the offer, once.
   if (!known || (understanding.title && !facts.hasTitle)) {
@@ -187,7 +191,14 @@ async function onMessage(deps: RespondDeps, ctx: TurnContext, turn: Extract<Turn
     });
   }
 
-  if (facts.state === "with_zukki" && facts.safety === "none" && urgent) {
+  if (analysis) await queue(copy.mediaAnalysis(analysis));
+
+  const markedValve = category === "plumbing" && markedFrameUrl !== null;
+  if (facts.state === "with_zukki" && facts.safety === "none" && (urgent || markedValve)) {
+    if (markedValve) {
+      await queue(copy.waterSafety({ markedFrameUrl, advice: valveAdvice, ifItGetsWorse: shutOffWontHelp }));
+      return;
+    }
     if (category === "plumbing" && shutOffWontHelp) {
       await queue(copy.shutOffWontHelp());
     } else if (category === "plumbing") {

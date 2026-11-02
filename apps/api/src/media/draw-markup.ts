@@ -13,3 +13,10 @@ export async function drawMarkup(framePath: string, outputPath: string, svgFor: 
     .toFile(outputPath);
   return outputPath;
 }
+
+// The size the customer sees: a sideways EXIF orientation swaps width and height.
+export async function imageSize(path: string): Promise<{ width: number; height: number }> {
+  const { info } = await sharp(path).rotate().toBuffer({ resolveWithObject: true });
+  return { width: info.width, height: info.height };
+}
+

@@ -67,8 +67,15 @@ export const categoryList = (): ZukkiMessage => ({
 
 // 04. With a marked frame the image shows the valve; without one, general
 // advice and no picture (handoff rule 10: never point at a pipe we did not find).
-export function waterSafety(input: { markedFrameUrl: string | null; advice: string | null }): ZukkiMessage {
-  const card = cardOf(builders.safetyMarkedFrame({ to: QUEUE_TO, markedFrameUrl: input.markedFrameUrl, advice: input.advice }));
+export function waterSafety(input: { markedFrameUrl: string | null; advice: string | null; ifItGetsWorse?: boolean }): ZukkiMessage {
+  const card = cardOf(
+    builders.safetyMarkedFrame({
+      to: QUEUE_TO,
+      markedFrameUrl: input.markedFrameUrl,
+      advice: input.advice,
+      ifItGetsWorse: input.ifItGetsWorse,
+    }),
+  );
   return {
     kind: "interactive",
     body: card.body,
@@ -79,6 +86,10 @@ export function waterSafety(input: { markedFrameUrl: string | null; advice: stri
     },
   };
 }
+
+export const lookingAtMedia = (): ZukkiMessage => text("One moment, I'm looking at what you sent.");
+
+export const mediaAnalysis = (analysis: string): ZukkiMessage => text(analysis);
 
 export const shutOffWontHelp = (): ZukkiMessage =>
   text("Closing your water valve won't stop this one. Keep clear of any outlets or cables near the water while I find you help.", {

@@ -105,8 +105,8 @@ export type UnderstandMediaInput = {
   schema: Record<string, unknown>;
 };
 
-// Reasoning shares this budget with the answer, which a low limit leaves empty.
-const UNDERSTAND_MAX_OUTPUT_TOKENS = 4000;
+// Reasoning shares this budget with the answer: at 4000 a video's answer came back empty or cut mid-JSON.
+const UNDERSTAND_MAX_OUTPUT_TOKENS = 16000;
 
 const responseSchema = z.object({
   output: z.array(
