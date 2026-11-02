@@ -48,6 +48,7 @@ export const onboardingCopys = {
   // setup step 2: prices
   pricesTitle: "Prices and fees",
   pricesLead: "I found these on your website. Check them before customers see them.",
+  pricesLeadEmpty: "Add your prices so customers know what you charge.",
   extraFees: "Extra fees",
   addPrice: "Add a price",
   editAction: "Edit",
