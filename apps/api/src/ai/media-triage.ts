@@ -41,7 +41,7 @@ const TRIAGE_PROMPT = [
   "severity: emergency when water or danger is spreading now, urgent when it needs help today, routine when it can wait, none when nothing is wrong.",
   "waterShutOff: helps when closing a water supply valve would stop this problem. wont_help when it clearly would not, such as rain, a roof or gutter, an old stain, or nothing wrong. unclear in every other case, and whenever you doubt. If the customer says water is leaking or flowing from a pipe, faucet, toilet or fixture, never answer wont_help because you cannot see it: answer helps, or unclear if their words leave it open.",
   "valveObject: the shortest plain noun for a water shut-off valve you can clearly see, such as valve. Null when none is clearly visible.",
-  "bestSeconds: for a video, the second where that valve, or otherwise the problem, is clearest. Null for a photo.",
+  "bestSeconds: for a video, the sharpest second where the camera is closest while every valve you saw stays fully inside the frame, none cut by an edge. With no valve, the second where the problem is clearest. Null for a photo.",
 ].join("\n");
 
 export async function triageMedia(
