@@ -15,7 +15,7 @@ import { Text } from '@astryxdesign/core/Text';
 import { Button } from '@astryxdesign/core/Button';
 import { Check, X } from 'lucide-react';
 import { contentCopys } from '../copys/contentCopys';
-import type { LinkedAccount } from '../../../shared/data/types';
+import type { ListedAccount } from '../services/accountsService';
 import type { LinkNotice } from '../lib/linkNotice';
 import ContentTopBar from './ContentTopBar';
 
@@ -26,17 +26,19 @@ const CAN_DO_ITEMS = [
 ] as const;
 
 export default function AccountsScreen(props: {
-  accounts: LinkedAccount[];
+  accounts: ListedAccount[];
   canConnect: boolean;
-  // What Facebook Login answered when it sent the owner back, or a failed connect link.
+  canUnlink: boolean;
+  // What Facebook Login answered when it sent the owner back, or a failed connect or unlink.
   notice: LinkNotice | null;
   insets: { top: number; bottom: number };
   onBack: () => Promise<void>;
   onConnect: () => Promise<void>;
+  onUnlink: (id: string) => Promise<void>;
   onSeeDrafts: () => Promise<void>;
   dom?: DOMProps;
 }) {
-  const { insets, accounts, canConnect, notice } = props;
+  const { insets, accounts, canConnect, canUnlink, notice } = props;
 
   return (
     <Theme theme={neutralTheme}>
@@ -76,10 +78,11 @@ export default function AccountsScreen(props: {
               {accounts.map((account, index) => {
                 const label = contentCopys.accountLabels[account.kind];
                 const subtitle = account.name;
+                const accountId = account.id;
 
                 return (
                   <div
-                    key={`${account.kind}:${account.name}`}
+                    key={accountId ?? `${account.kind}:${account.name}`}
                     style={{
                       display: 'flex',
                       alignItems: 'center',
@@ -97,6 +100,14 @@ export default function AccountsScreen(props: {
                     <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-text-primary)' }}>
                       {contentCopys.connected}
                     </span>
+                    {canUnlink && accountId && (
+                      <Button
+                        label={contentCopys.unlink}
+                        variant="secondary"
+                        size="md"
+                        onClick={() => void props.onUnlink(accountId)}
+                      />
+                    )}
                   </div>
                 );
               })}

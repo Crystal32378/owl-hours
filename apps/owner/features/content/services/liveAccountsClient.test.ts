@@ -27,8 +27,8 @@ describe("live accounts client", () => {
     }));
 
     assert.deepEqual(await client.listAccounts(), [
-      { kind: "facebook_page", name: "Northside Plumbing", status: "connected" },
-      { kind: "instagram", name: "", status: "connected" },
+      { id: "a0000000-0000-4000-8000-000000000001", kind: "facebook_page", name: "Northside Plumbing", status: "connected" },
+      { id: "a0000000-0000-4000-8000-000000000002", kind: "instagram", name: "", status: "connected" },
     ]);
     assert.deepEqual(calls, [`GET ${API}/v1/owner/linked-accounts`]);
   });
@@ -48,7 +48,7 @@ describe("live accounts client", () => {
   });
 
   it("rejects an answer that is not a list of accounts", async () => {
-    const { client } = fakeAccountsApi(Response.json({ success: true, data: [{ platform: "tiktok" }] }));
+    const { client } = fakeAccountsApi(Response.json({ success: true, data: [{ id: "a1", platform: "tiktok" }] }));
 
     await assert.rejects(client.listAccounts());
   });
@@ -57,14 +57,40 @@ describe("live accounts client", () => {
     const url = "https://www.facebook.com/v26.0/dialog/oauth?client_id=1234567890123&state=v1.abc.def";
     const { client, calls } = fakeAccountsApi(Response.json({ success: true, data: { url } }));
 
-    assert.equal(await client.connectUrl?.(), url);
-    assert.deepEqual(calls, [`GET ${API}/v1/owner/meta/connect-url`]);
+    assert.equal(await client.connectUrl?.("web"), url);
+    assert.deepEqual(calls, [`GET ${API}/v1/owner/meta/connect-url?return=web`]);
+  });
+
+  it("asks for a login that returns to the native app with return=app (D1)", async () => {
+    const url = "https://www.facebook.com/v26.0/dialog/oauth?client_id=1234567890123&state=v1.abc.def";
+    const { client, calls } = fakeAccountsApi(Response.json({ success: true, data: { url } }));
+
+    assert.equal(await client.connectUrl?.("app"), url);
+    assert.deepEqual(calls, [`GET ${API}/v1/owner/meta/connect-url?return=app`]);
+  });
+
+  it("unlinks an account with DELETE /linked-accounts/:id", async () => {
+    const id = "a0000000-0000-4000-8000-000000000001";
+    const { client, calls } = fakeAccountsApi(Response.json({ success: true, data: { id } }));
+
+    await client.unlink?.(id);
+
+    assert.deepEqual(calls, [`DELETE ${API}/v1/owner/linked-accounts/${id}`]);
+  });
+
+  it("rejects with the API's message when unlinking fails", async () => {
+    const { client } = fakeAccountsApi(Response.json(
+      { success: false, error: { code: "not_found", message: "Linked account not found." } },
+      { status: 404 },
+    ));
+
+    await assert.rejects(client.unlink?.("a0000000-0000-4000-8000-000000000001") ?? Promise.resolve(), /not found/);
   });
 
   it("refuses a connect URL that is not Facebook's login dialog", async () => {
     const { client } = fakeAccountsApi(Response.json({ success: true, data: { url: "https://evil.example/dialog/oauth" } }));
 
-    await assert.rejects(client.connectUrl?.() ?? Promise.resolve(), /Facebook/);
+    await assert.rejects(client.connectUrl?.("web") ?? Promise.resolve(), /Facebook/);
   });
 
   it("rejects with the API's message when Facebook is not configured", async () => {
@@ -73,6 +99,6 @@ describe("live accounts client", () => {
       { status: 503 },
     ));
 
-    await assert.rejects(client.connectUrl?.() ?? Promise.resolve(), /not configured/);
+    await assert.rejects(client.connectUrl?.("web") ?? Promise.resolve(), /not configured/);
   });
 });

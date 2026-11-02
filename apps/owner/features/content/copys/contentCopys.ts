@@ -43,6 +43,8 @@ export const contentCopys = {
   cannotPublish: "Publish anything without your approval",
   connectFacebookInstagram: "Connect Facebook and Instagram",
   noLinkedAccounts: "No Facebook Page or Instagram account is connected yet.",
+  unlink: "Unlink",
+  unlinkFailed: "Could not unlink this account. Try again.",
   linkNotices: {
     linked: "Facebook and Instagram are connected.",
     denied: "Facebook Login was cancelled. Nothing was connected.",

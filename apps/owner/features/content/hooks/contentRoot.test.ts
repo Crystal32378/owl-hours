@@ -25,6 +25,10 @@ function recordingApi(answers: Record<string, unknown>) {
       calls.push(`PUT ${path}`);
       return undefined;
     },
+    delete: async (path) => {
+      calls.push(`DELETE ${path}`);
+      return undefined;
+    },
   };
   return { api, calls };
 }
@@ -37,7 +41,8 @@ describe("contentRootFor live", () => {
 
     const accounts = await contentRootFor(api).accountsService.getAccounts();
 
-    assert.deepEqual(accounts, [{ kind: "instagram", name: "@northside", status: "connected" }]);
+    assert.deepEqual(accounts,
+      [{ id: "a0000000-0000-4000-8000-000000000001", kind: "instagram", name: "@northside", status: "connected" }]);
     assert.deepEqual(calls, ["GET /linked-accounts"]);
   });
 
