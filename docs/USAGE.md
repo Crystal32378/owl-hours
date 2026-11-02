@@ -152,6 +152,12 @@ The local seed has no finished job with photos yet. Run `scripts/local/seed-cont
 1. Switch to the **Content** tab.
 2. Zukki automatically drafts social marketing posts from finished, consented jobs and pricing rules.
 3. Review the drafted before-and-after story/post, inspect generated copy, and approve or schedule publication.
+4. To post for real, open **Content → Linked accounts → Connect Facebook and Instagram** and finish Facebook Login with a Page you manage (and the Instagram professional account connected to it). **Approve and post** then publishes to those accounts and shows **Published** only after the API confirms; a failure shows the API's message and the post stays approved, so tapping again retries.
+
+### Facebook and Instagram setup (Meta app, development mode)
+1. In Meta for Developers, add **Facebook Login for Business** to the app and add `<API_PUBLIC_URL>/v1/meta/callback` to **Valid OAuth Redirect URIs**.
+2. Give every owner who will link a Page a role on the app (admin, developer or tester); in development mode only they can log in. App Review for `pages_show_list`, `pages_read_engagement`, `pages_manage_posts`, `instagram_basic` and `instagram_content_publish` opens it to everyone else.
+3. On the API host (Railway), set `META_APP_ID`, `META_APP_SECRET`, `API_PUBLIC_URL`, `OWNER_WEB_URL`, and optionally `META_GRAPH_VERSION` and `META_LOGIN_CONFIG_ID` (see [API configuration](API.md#configuration)).
 
 ---
 
@@ -196,6 +202,7 @@ Run the project's standard verification checks:
 Current architectural and deployment limits to keep in mind:
 - **Hosted Deployment**: Full production cloud hosting is not pre-configured; local execution relies on the containerized Supabase stack.
 - **Hosted Supabase Email Auth**: When deploying to a hosted Supabase project, you must enable the **Email** provider in *Authentication → Providers → Email* with "Confirm email" toggled on. Crucially, the **Magic Link** and **Confirm sign up** email templates must both include `{{ .Token }}` so Supabase emits the 6-digit numerical code rather than only an HTTP magic link.
+- **Facebook and Instagram**: posting works for the Meta app's admins, developers and testers until App Review. Instagram takes JPEG photos only, so a PNG or WebP photo fails there with Meta's message. On native, Facebook Login opens in the system browser and returns to the owner web app; reopen the app's Linked accounts to see the new accounts.
 - **Push Notifications on Real Devices**: Remote push notification registration in `apps/owner` requires adding `extra.eas.projectId` into `apps/owner/app.json` and generating a custom Expo development build (`eas build`). In standard Expo Go or Expo web without an EAS project ID, push tokens are omitted.
 
 ---
