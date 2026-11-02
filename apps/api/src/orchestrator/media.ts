@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { basename, dirname } from "node:path";
 import { imagePart, textPart, type ContentPart } from "@owl-hours/meta-models";
 import type { MediaTriage } from "../ai/media-triage.ts";
-import { GENERIC_VALVE_ADVICE, type ValveResult } from "../ai/valve-step.ts";
+import { GENERIC_VALVE_ADVICE, VALVE_CONCEPT, type ValveResult } from "../ai/valve-step.ts";
 import { describeValve, type PipelineDeps } from "../worker/process-message.ts";
 import type { MediaReading, RespondDeps } from "./types.ts";
 
@@ -52,7 +52,7 @@ async function read(pipeline: PipelineDeps, log: Warn, path: string, input: Read
     parts.push(textPart("Pipeline note: closing a water valve will not stop this. Do not tell the customer to close a valve."));
     return { ...reading, shutOffWontHelp: true };
   }
-  const valve = await findValve(pipeline, framePath, imageUrl, triage);
+  const valve = await findValve(pipeline, log, framePath, imageUrl, triage);
   parts.push(textPart(describeValve(valve)));
   if (valve.kind === "marked") {
     const markedFrameUrl = await pipeline.publishImage(input.conversationId, valve.markedFramePath, input.mediaId);
@@ -82,17 +82,37 @@ function frameOf(pipeline: PipelineDeps, path: string, triage: MediaTriage | nul
 }
 
 // SAM finds what it is told to, so a valve Spark did not see is not worth asking for.
+// It answers nothing for some longer names of a valve it can see, such as "shut-off valve".
 async function findValve(
   pipeline: PipelineDeps,
+  log: Warn,
   framePath: string,
   imageUrl: string,
   triage: MediaTriage | null,
 ): Promise<ValveResult> {
-  if (!triage) return pipeline.markValve(framePath, imageUrl);
-  if (!triage.valveObject) return { kind: "fallback", advice: GENERIC_VALVE_ADVICE };
-  const named = await pipeline.markValve(framePath, imageUrl, triage.valveObject);
-  // SAM answers nothing for some longer names of a valve it can see, such as "shut-off valve".
-  return named.kind === "marked" ? named : pipeline.markValve(framePath, imageUrl);
+  const named = triage?.valveObject ?? undefined;
+  if (triage && !named) return { kind: "fallback", advice: GENERIC_VALVE_ADVICE };
+  const mark = (concept?: string) => markOrAdvice(pipeline, log, framePath, imageUrl, concept);
+  const first = await mark(named);
+  if (first.kind === "marked" || !named || named === VALVE_CONCEPT) return first;
+  const second = await mark();
+  return second.kind === "marked" ? second : first;
+}
+
+// A failed SAM call costs the customer the circle, never the advice.
+async function markOrAdvice(
+  pipeline: PipelineDeps,
+  log: Warn,
+  framePath: string,
+  imageUrl: string,
+  concept?: string,
+): Promise<ValveResult> {
+  try {
+    return await pipeline.markValve(framePath, imageUrl, concept);
+  } catch (error) {
+    log.warn(`zukki: valve marking failed: ${error instanceof Error ? error.message : String(error)}`);
+    return { kind: "fallback", advice: GENERIC_VALVE_ADVICE };
+  }
 }
 
 // Only folders this module's downloads create (os.tmpdir()/zukki-*).

@@ -11,7 +11,8 @@ import { GENERIC_VALVE_ADVICE } from "../src/ai/valve-step.ts";
 import { historyMessages, historyText } from "../src/orchestrator/history.ts";
 import { createMediaReader } from "../src/orchestrator/media.ts";
 import { createSerializer } from "../src/orchestrator/serial.ts";
-import { createConversationStore } from "../src/orchestrator/store.ts";
+import { shutOffWontHelp } from "../src/orchestrator/copy.ts";
+import { createConversationStore, readFacts } from "../src/orchestrator/store.ts";
 import { understandNeed } from "../src/orchestrator/understand.ts";
 import type { PipelineDeps } from "../src/worker/process-message.ts";
 import { fakeSupabase } from "./helpers/fake-supabase.ts";
@@ -95,6 +96,15 @@ describe("createConversationStore", () => {
     });
     const facts = await createConversationStore(client).facts(CHAT);
     assert.deepEqual(facts, { state: "with_zukki", category: "plumbing", urgency: "now", safety: "awaiting", locationAsked: false, hasLocation: false, hasTitle: false });
+  });
+
+  it("reads the 'closing won't help' message as a finished safety step, so the next message sends no valve card", () => {
+    const message = shutOffWontHelp();
+    const conversation = { state: "with_zukki", category: "plumbing", urgency: "now" } as Parameters<typeof readFacts>[0];
+
+    const facts = readFacts(conversation, [{ sender: "zukki", kind: message.kind, payload: message.payload }] as Parameters<typeof readFacts>[1], false);
+
+    assert.equal(facts.safety, "answered");
   });
 
   it("sees an answered safety step, the location request and the shared location", async () => {
@@ -301,6 +311,53 @@ describe("createMediaReader", () => {
 
     assert.deepEqual(asked, ["shut-off valve", undefined]);
     assert.equal(reading.markedFrameUrl, "https://example.supabase.co/marked.jpg");
+  });
+
+  it("gives the general advice when both SAM tries find nothing", async () => {
+    const { pipeline } = await fakePipeline({ markValve: async () => ({ kind: "fallback", advice: "Look under the tank." }) });
+
+    const reading = await createMediaReader(pipeline)(video);
+
+    assert.equal(reading.markedFrameUrl, null);
+    assert.equal(reading.valveAdvice, "Look under the tank.");
+  });
+
+  it("asks SAM once when Spark already used SAM's own word", async () => {
+    let asks = 0;
+    const { pipeline } = await fakePipeline({
+      triage: async () => ({ ...HELPS, valveObject: "valve" }),
+      markValve: async () => {
+        asks += 1;
+        return { kind: "fallback", advice: "Look under the tank." };
+      },
+    });
+
+    await createMediaReader(pipeline)(video);
+
+    assert.equal(asks, 1);
+  });
+
+  it("gives the general advice and logs it when SAM fails, whichever try it is", async () => {
+    const warnings: string[] = [];
+    let asks = 0;
+    const { pipeline } = await fakePipeline({
+      markValve: async () => {
+        asks += 1;
+        if (asks === 1) return { kind: "fallback", advice: "Look under the tank." };
+        throw new Error("SAM is down");
+      },
+    });
+    const failing = await fakePipeline({
+      markValve: async () => {
+        throw new Error("SAM is down");
+      },
+    });
+    const reader = (p: PipelineDeps) => createMediaReader(p, { warn: (message) => warnings.push(message) });
+
+    assert.equal((await reader(pipeline)(video)).valveAdvice, "Look under the tank.");
+    assert.equal((await reader(failing.pipeline)(video)).valveAdvice, GENERIC_VALVE_ADVICE);
+    assert.equal(warnings.length, 3);
+    assert.match(warnings[0] ?? "", /SAM is down/);
   });
 
   it("keeps the valve search when Spark is unsure", async () => {
