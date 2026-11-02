@@ -9,6 +9,7 @@ import { rateLimit } from "../http/rate-limit.ts";
 import { errorResponse, ok, readId, readJson, readQuery } from "../http/respond.ts";
 import * as owner from "../services/owner-service.ts";
 import { metaConnectUrl, unlinkAccount } from "../services/owner-meta.ts";
+import { publishContentDraft } from "../services/owner-publish.ts";
 import type { V1Deps } from "./v1.ts";
 
 const limit = z.coerce.number().int().min(1).max(100).optional();
@@ -250,6 +251,10 @@ export function ownerRoutes(deps: V1Deps): Hono<OwnerEnv> {
     const body = await readJson(c, storyPackReviewSchema);
     return ok(c, await owner.reviewContentDraft(c.get("session"), id, body));
   });
+
+  // Posts an approved Story Pack to its linked Page and Instagram account (the owner app calls it after review).
+  app.post("/content/drafts/:id/publish", async (c) =>
+    ok(c, await publishContentDraft(c.get("session"), readId(c), deps)));
 
   app.post("/content/drafts/:id/handoff", async (c) =>
     ok(c, await owner.handoffContentDraft(c.get("session"), readId(c))));

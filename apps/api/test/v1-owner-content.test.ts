@@ -313,10 +313,12 @@ describe("/v1/owner Story Pack drafts", () => {
     assert.equal(calls.some((request) => request.path === "/rest/v1/rpc/review_content_draft"), false);
   });
 
-  it("does not expose a publish operation from this API", async () => {
-    const { call } = setup(() => ({ body: {} }));
+  // Publishing now exists (odd/tasks/owner-meta-publishing.md S3); without the META_* settings it stays off.
+  it("does not publish while Facebook and Instagram are not configured", async () => {
+    const { call, calls } = setup(() => ({ body: {} }));
     const response = await call(`/content/drafts/${DRAFT}/publish`, { method: "POST" });
-    assert.equal(response.status, 404);
+    assert.equal(response.status, 503);
+    assert.equal(calls.length, 0);
   });
 
   it("maps database policy failures without returning database internals", async () => {
