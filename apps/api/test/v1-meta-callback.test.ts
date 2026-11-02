@@ -95,6 +95,22 @@ describe("GET /v1/meta/callback", () => {
     assert.doesNotMatch(logged.join("\n"), new RegExp(`${SHORT_TOKEN}|${APP_SECRET}`));
   });
 
+  it("returns the owner with reason meta_error when Meta cannot be reached or answers an unexpected shape", async (t) => {
+    t.mock.method(console, "error", () => {});
+    const unreachable = setup({ graph: () => { throw new TypeError("fetch failed"); } });
+    const pageWithoutToken = setup({
+      graph: (call) => call.path.endsWith("me/accounts") ? { body: { data: [{ id: "123", name: "No token" }] } } : linkingGraph(call),
+    });
+
+    for (const { callback, serviceCalls } of [unreachable, pageWithoutToken]) {
+      const response = await callback(`code=c&state=${validState()}`);
+
+      assert.equal(response.status, 302);
+      assert.equal(redirectOf(response).searchParams.get("reason"), "meta_error");
+      assert.equal(serviceCalls.length, 0);
+    }
+  });
+
   it("returns the owner with reason no_pages when no Page was shared", async () => {
     const { callback, serviceCalls } = setup({
       graph: (call) => call.path === "/v26.0/me/accounts" ? { body: { data: [] } } : linkingGraph(call),

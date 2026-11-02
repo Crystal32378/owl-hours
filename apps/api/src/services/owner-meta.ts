@@ -87,11 +87,13 @@ async function linkFromCallback(meta: MetaDeps, deps: MetaLinkDeps, query: Recor
   if (query.error) return "denied";
   if (!query.code) return "invalid_request";
   let pages: MetaPage[];
+  // The callback always answers a redirect: a Meta error, an outage or an unexpected answer
+  // all return the owner to the app with meta_error. The log names the failure, never a token.
   try {
     pages = await sharedPages(meta, query.code);
   } catch (error) {
-    if (!(error instanceof MetaGraphError)) throw error;
-    console.error(`[meta] login exchange failed: ${error.message}`);
+    const detail = error instanceof MetaGraphError ? error.message : error instanceof Error ? error.name : "unknown error";
+    console.error(`[meta] login exchange failed: ${detail}`);
     return "meta_error";
   }
   if (pages.length === 0) return "no_pages";
