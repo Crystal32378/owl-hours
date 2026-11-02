@@ -35,8 +35,94 @@ describe("pickValve", () => {
   });
 });
 
+describe("markValve at Spark's points", () => {
+  const VALVES = [{ x: 106, y: 215 }, { x: 880, y: 255 }];
+  const FRAME = { width: 576, height: 1024 };
+
+  it("converts Spark's 0-1000 points to pixels, asks SAM at each and circles every valve", async () => {
+    const asked: unknown[] = [];
+    let rings = 0;
+    let labels = 0;
+
+    const result = await markValve({
+      framePath: "/tmp/frame.jpg",
+      imageUrl: "data:x",
+      locate: async () => VALVES,
+      frameSize: async () => FRAME,
+      segmentAt: async (point) => {
+        asked.push(point);
+        return [detection(asked.length, 0.65)];
+      },
+      segment: async () => {
+        throw new Error("words are only the fallback");
+      },
+      drawOverlay: async (_frame, svgFor) => {
+        const svg = svgFor(576, 1024);
+        rings = (svg.match(/<circle [^>]*stroke="#FF3B30"/g) ?? []).length;
+        labels = (svg.match(/<text /g) ?? []).length;
+        return "/tmp/marked.jpg";
+      },
+    });
+
+    assert.deepEqual(asked, [{ x: 61, y: 220, ...FRAME }, { x: 507, y: 261, ...FRAME }]);
+    assert.equal(result.kind, "marked");
+    assert.equal(rings, 2);
+    assert.equal(labels, 1);
+  });
+
+  it("falls back to words when Spark sees nothing, tries the broader phrase first, and stops at the first find", async () => {
+    const concepts: string[] = [];
+
+    const result = await markValve({
+      framePath: "/tmp/frame.jpg",
+      imageUrl: "data:x",
+      locate: async () => [],
+      frameSize: async () => FRAME,
+      segmentAt: async () => [],
+      segment: async (concept) => {
+        concepts.push(concept);
+        return concept === "plumbing valve" ? [detection(0, 0.7)] : [];
+      },
+      drawOverlay: async () => "/tmp/marked.jpg",
+    });
+
+    assert.deepEqual(concepts, ["plumbing valve"]);
+    assert.equal(result.kind, "marked");
+  });
+
+  it("falls back to words when locating fails", async () => {
+    const result = await markValve({
+      framePath: "/tmp/frame.jpg",
+      imageUrl: "data:x",
+      locate: async () => {
+        throw new Error("Spark is down");
+      },
+      frameSize: async () => FRAME,
+      segmentAt: async () => [],
+      segment: async () => [detection(0, 0.7)],
+      drawOverlay: async () => "/tmp/marked.jpg",
+    });
+
+    assert.equal(result.kind, "marked");
+  });
+
+  it("ignores a point SAM is unsure about", async () => {
+    const result = await markValve({
+      framePath: "/tmp/frame.jpg",
+      imageUrl: "data:x",
+      locate: async () => [{ x: 500, y: 500 }],
+      frameSize: async () => FRAME,
+      segmentAt: async () => [detection(0, 0.2)],
+      segment: async () => [],
+      drawOverlay: async () => "/tmp/marked.jpg",
+    });
+
+    assert.equal(result.kind, "fallback");
+  });
+});
+
 describe("markValve", () => {
-  it("asks SAM for a plain 'valve': on a photo of a valve, 'shut-off valve' returned nothing", async () => {
+  it("asks SAM for the words that find real valves, broadest first", async () => {
     const concepts: string[] = [];
 
     await markValve({
@@ -49,7 +135,7 @@ describe("markValve", () => {
       drawOverlay: async () => "/tmp/marked.jpg",
     });
 
-    assert.deepEqual(concepts, ["valve"]);
+    assert.deepEqual(concepts, ["plumbing valve", "valve"]);
   });
 
   it("uses the object name it is given", async () => {
@@ -66,7 +152,7 @@ describe("markValve", () => {
       drawOverlay: async () => "/tmp/marked.jpg",
     });
 
-    assert.deepEqual(concepts, ["angle stop"]);
+    assert.deepEqual(concepts, ["angle stop", "plumbing valve", "valve"]);
   });
 
   it("gives advice that fits a photo as well as a video", () => {

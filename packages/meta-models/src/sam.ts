@@ -65,6 +65,26 @@ function toDetection(frame: number, objectId: number, fields: string): SamDetect
 }
 
 export async function segmentImage(client: MetaClient, input: SegmentImageInput): Promise<SamDetection[]> {
+  return segment(client, input.concept, input.imageUrl);
+}
+
+export type SegmentAtPointInput = {
+  // Pixels in the image, with the image's own size (dev.meta.ai/docs/sam/segmenting).
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  imageUrl: string;
+};
+
+// The object at one pixel, for when words find nothing: on a real sink's valves SAM
+// returned nothing for "valve", and a box for each valve when pointed at it.
+export async function segmentAtPoint(client: MetaClient, input: SegmentAtPointInput): Promise<SamDetection[]> {
+  const prompt = `<0f>1<|point;x=${input.x};y=${input.y};w=${input.width};h=${input.height}|>`;
+  return segment(client, prompt, input.imageUrl);
+}
+
+async function segment(client: MetaClient, prompt: string, imageUrl: string): Promise<SamDetection[]> {
   const body = {
     model: SAM_MODEL,
     input: [
@@ -72,8 +92,8 @@ export async function segmentImage(client: MetaClient, input: SegmentImageInput)
         type: "message",
         role: "user",
         content: [
-          { type: "input_text", text: input.concept },
-          { type: "input_image", image_url: input.imageUrl },
+          { type: "input_text", text: prompt },
+          { type: "input_image", image_url: imageUrl },
         ],
       },
     ],

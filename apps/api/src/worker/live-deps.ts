@@ -5,15 +5,15 @@ import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, extname, join } from "node:path";
 import { z } from "zod";
-import { createChatCompletion, createMetaClient, segmentImage, transcribeWav, understandMedia } from "@owl-hours/meta-models";
-import { triageMedia } from "../ai/media-triage.ts";
+import { createChatCompletion, createMetaClient, segmentAtPoint, segmentImage, transcribeWav, understandMedia } from "@owl-hours/meta-models";
+import { locateValves, triageMedia } from "../ai/media-triage.ts";
 import { markValve } from "../ai/valve-step.ts";
 import { runAgent } from "../agent/run-agent.ts";
 import { createAgentTools } from "../agent/tools.ts";
 import { loadConfig, type ApiConfig } from "../config.ts";
 import { createServiceClient } from "../db/client.ts";
 import { createSupabaseRepository } from "../db/repository.ts";
-import { drawMarkup } from "../media/draw-markup.ts";
+import { drawMarkup, imageSize } from "../media/draw-markup.ts";
 import { extractFrame, runFfmpeg, toWavArgs } from "../media/ffmpeg.ts";
 import { createMediaStore } from "../media/media-store.ts";
 import { TEMP_PREFIX } from "../orchestrator/media.ts";
@@ -72,6 +72,9 @@ export function createLiveDeps(config: ApiConfig = loadConfig()): PipelineDeps {
         framePath,
         imageUrl,
         concept,
+        locate: (frameUrl) => locateValves((input) => understandMedia(client, input), frameUrl),
+        frameSize: imageSize,
+        segmentAt: (point, url) => segmentAtPoint(client, { ...point, imageUrl: url }),
         segment: (concept, url) => segmentImage(client, { concept, imageUrl: url }),
         drawOverlay: (frame, svgFor) => drawMarkup(frame, withSuffix(frame, "-valve.jpg"), svgFor),
       }),

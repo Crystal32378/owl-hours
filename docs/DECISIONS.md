@@ -570,3 +570,10 @@ it with a new one.
 - **`store: false`:** a customer's media stays out of stored responses, which also refuse requests of about 29 MB with a 413.
 - **Limits:** Spark did not see the small drip in two faucet videos, at any `fps`. A reading adds about 10-20 s to the reply. SAM accepts MP4 and MOV, not WebM; WhatsApp sends MP4 or 3GPP, and a 3GPP clip falls back. Only "may be a leak" media is read, so other categories still send one frame.
 
+## D38 — The customer always gets the reading, and valves are found by Spark's points (2026-11-02)
+
+- **Decision:** after a photo or video that may be a leak, Zukki sends a quick notice, then Spark's `customerMessage` (what it sees and what to do now, in the customer's language), then the marked valve when one was found. Spark locates each valve on the chosen frame; SAM cuts each one out with a point prompt (https://dev.meta.ai/docs/sam/segmenting) and every valve is circled. Words are the fallback.
+- **Why:** a real video of a leaking sink drain got only a location request: the need read as not urgent, so the safety step was skipped and the reading was thrown away. On that frame SAM found no valve for "valve", "handle" or "knob", but a box for each valve when pointed at it. Spark's points were accurate from the frame and far off from the whole video, so locating is a second call.
+- **Marked valves are always shown:** when closing the valve would not stop the leak, the card says "If it gets worse", instead of "Let's stop the water first". Nothing is marked when nothing is wrong.
+- **Limits:** a reading took 14-56 s in tests. Fixed copy stays in English; only Spark's message follows the customer's language.
+

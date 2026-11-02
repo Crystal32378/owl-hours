@@ -77,19 +77,26 @@ const escapeXml = (value: string) =>
   value.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&apos;" })[c] ?? c);
 
 // SVG in SAM's coordinate space, scaled to the frame's real pixel size.
-export function markupSvg(m: ValveMarkup, viewWidth: number, viewHeight: number, pixelWidth = viewWidth, pixelHeight = viewHeight): string {
+export function markupSvg(marks: ValveMarkup | ValveMarkup[], viewWidth: number, viewHeight: number, pixelWidth = viewWidth, pixelHeight = viewHeight): string {
+  return [
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${pixelWidth}" height="${pixelHeight}" viewBox="0 0 ${viewWidth} ${viewHeight}" preserveAspectRatio="none">`,
+    ...[marks].flat().map((mark, index) => markupShapes(mark, index === 0)),
+    "</svg>",
+  ].join("");
+}
+
+// One label is enough: with two valves the labels land on top of each other near the middle.
+function markupShapes(m: ValveMarkup, withLabel: boolean): string {
   const { ring, arrow, label, stroke } = m;
   const head = arrow.head.map((p) => `${p.x},${p.y}`).join(" ");
   const shadow = `stroke="#000" stroke-opacity="0.45" stroke-width="${stroke + 4}"`;
   return [
-    `<svg xmlns="http://www.w3.org/2000/svg" width="${pixelWidth}" height="${pixelHeight}" viewBox="0 0 ${viewWidth} ${viewHeight}" preserveAspectRatio="none">`,
     `<circle cx="${ring.cx}" cy="${ring.cy}" r="${ring.r}" fill="none" ${shadow}/>`,
     `<line x1="${arrow.from.x}" y1="${arrow.from.y}" x2="${arrow.to.x}" y2="${arrow.to.y}" stroke-linecap="round" ${shadow}/>`,
     `<circle cx="${ring.cx}" cy="${ring.cy}" r="${ring.r}" fill="none" stroke="#FF3B30" stroke-width="${stroke}"/>`,
     `<line x1="${arrow.from.x}" y1="${arrow.from.y}" x2="${arrow.to.x}" y2="${arrow.to.y}" stroke="#FF3B30" stroke-width="${stroke}" stroke-linecap="round"/>`,
     `<polygon points="${head}" fill="#FF3B30" stroke="#000" stroke-opacity="0.45" stroke-width="2"/>`,
-    `<rect x="${label.x}" y="${label.y}" width="${label.width}" height="${label.height}" rx="${Math.round(label.height / 4)}" fill="#000" fill-opacity="0.72"/>`,
-    `<text x="${round(label.x + label.width / 2)}" y="${round(label.y + label.height / 2)}" fill="#fff" font-family="DejaVu Sans, Arial, Helvetica, sans-serif" font-weight="700" font-size="${label.fontSize}" text-anchor="middle" dominant-baseline="central">${escapeXml(label.text)}</text>`,
-    "</svg>",
+    withLabel ? `<rect x="${label.x}" y="${label.y}" width="${label.width}" height="${label.height}" rx="${Math.round(label.height / 4)}" fill="#000" fill-opacity="0.72"/>` : "",
+    withLabel ? `<text x="${round(label.x + label.width / 2)}" y="${round(label.y + label.height / 2)}" fill="#fff" font-family="DejaVu Sans, Arial, Helvetica, sans-serif" font-weight="700" font-size="${label.fontSize}" text-anchor="middle" dominant-baseline="central">${escapeXml(label.text)}</text>` : "",
   ].join("");
 }

@@ -106,6 +106,10 @@ export type MediaReading = {
   valveAdvice: string | null;
   // Spark saw closing a water valve will not stop this (rain, a roof, an old stain).
   shutOffWontHelp: boolean;
+  // What Spark saw and what to do now, written for the customer.
+  analysis: string | null;
+  // Spark rated what it saw as an emergency or urgent.
+  serious: boolean;
 };
 
 export type RespondDeps = {

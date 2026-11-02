@@ -2,7 +2,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { createMetaClient } from "../src/client.ts";
-import { parseSamOutput, segmentImage } from "../src/sam.ts";
+import { parseSamOutput, segmentImage, segmentAtPoint } from "../src/sam.ts";
 import { fakeFetch, jsonResponse } from "./fake-fetch.ts";
 
 const TWO_VALVES =
@@ -104,3 +104,22 @@ describe("segmentImage", () => {
     assert.equal((await segmentImage(client, { concept: "valve", imageUrl: "data:x" })).length, 2);
   });
 });
+
+describe("segmentAtPoint", () => {
+  it("asks SAM for the object at a pixel, using the point prompt on frame 0", async () => {
+    const fetch = fakeFetch(
+      () =>
+        new Response('data: {"type":"response.output_text.delta","delta":"<0f>1<|box;x1=23;y1=165;x2=108;y2=277;w=576;h=1024;c=0.68|>"}\n\n', {
+          headers: { "content-type": "text/event-stream" },
+        }),
+    );
+    const client = createMetaClient({ apiKey: "k", fetch: fetch.fn });
+
+    const detections = await segmentAtPoint(client, { x: 61, y: 220, width: 576, height: 1024, imageUrl: "data:image/jpeg;base64,AAAA" });
+
+    assert.deepEqual(detections.map((d) => d.box), [{ x1: 23, y1: 165, x2: 108, y2: 277 }]);
+    const [message] = (fetch.calls[0]?.json as { input: { content: unknown[] }[] }).input;
+    assert.deepEqual(message?.content[0], { type: "input_text", text: "<0f>1<|point;x=61;y=220;w=576;h=1024|>" });
+  });
+});
+

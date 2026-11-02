@@ -9,6 +9,7 @@ export const SAFETY_BUTTONS: ReplyButton[] = [
 ];
 
 const MARKED_BODY = "Let's stop the water first: turn this valve clockwise. Any outlets or cables near the water?";
+const MARKED_FOR_LATER_BODY = "If it gets worse, turn this valve clockwise to stop the water. Any outlets or cables near the water?";
 const DEFAULT_ADVICE =
   "Find the shut-off valve on the pipe under or behind the fixture and turn it clockwise until it stops.";
 
@@ -16,15 +17,17 @@ export function safetyMarkedFrame(input: {
   to: string;
   markedFrameUrl: string | null;
   advice?: string | null | undefined;
+  // The valve is shown for later: closing it would not stop what the customer sent.
+  ifItGetsWorse?: boolean | undefined;
 }): OutgoingMessage {
   return buttonMessage(input.to, {
-    body: clip(safetyBody(input.markedFrameUrl, input.advice ?? null), BUTTON_BODY_MAX),
+    body: clip(safetyBody(input.markedFrameUrl, input.advice ?? null, input.ifItGetsWorse ?? false), BUTTON_BODY_MAX),
     buttons: SAFETY_BUTTONS,
     ...(input.markedFrameUrl ? { headerImageUrl: input.markedFrameUrl } : {}),
   });
 }
 
-function safetyBody(markedFrameUrl: string | null, advice: string | null): string {
-  if (markedFrameUrl) return MARKED_BODY;
+function safetyBody(markedFrameUrl: string | null, advice: string | null, ifItGetsWorse: boolean): string {
+  if (markedFrameUrl) return ifItGetsWorse ? MARKED_FOR_LATER_BODY : MARKED_BODY;
   return `Let's stop the water first. ${advice ?? DEFAULT_ADVICE} Any outlets or cables near the water?`;
 }

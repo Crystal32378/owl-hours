@@ -79,7 +79,7 @@ describe("understandMedia", () => {
     assert.equal(fetch.calls[0]?.url, "https://api.meta.ai/v1/responses");
     assert.deepEqual(fetch.calls[0]?.json, {
       model: "muse-spark-1.3",
-      max_output_tokens: 4000,
+      max_output_tokens: 16000,
       store: false,
       text: { format: { type: "json_schema", name: "media_triage", schema: SCHEMA, strict: true } },
       input: [
