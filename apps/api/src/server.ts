@@ -2,6 +2,7 @@
 // --env-file-if-exists=.env so the keys come from apps/api/.env locally;
 // in a deployment they come from the host's environment.
 import { readOwnerAppOrigins } from "./http/owner-cors.ts";
+import { logMetaModelAccess } from "./meta-model-check.ts";
 import { serve } from "@hono/node-server";
 import { createApp } from "./index.ts";
 import { readPort, readPollMs } from "./port.ts";
@@ -29,6 +30,7 @@ function main(): void {
   if ("unavailable" in live.whatsapp) {
     console.warn(`WhatsApp disabled (webhook returns 503, nothing is sent): ${live.whatsapp.unavailable}`);
   }
+  void logMetaModelAccess(process.env, console);
   const { app } = createApp({ v1: live.v1, whatsapp: live.whatsapp, ownerAppOrigins: readOwnerAppOrigins(process.env.OWNER_APP_ORIGINS), ownerPublicOrigin: process.env.OWNER_PUBLIC_ORIGIN });
   const server = serve({ fetch: app.fetch, port }, (info) => {
     console.log(`Zukki API listening on port ${info.port}`);
