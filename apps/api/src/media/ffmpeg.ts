@@ -16,7 +16,7 @@ export function extractFrameArgs(input: string, output: string, atSeconds: numbe
 const DEFAULT_FRAME_SECONDS = 1;
 
 // Tries the asked second, then one second in, then the first frame. Past the end of a clip
-// ffmpeg writes no file and still exits 0, so the file itself says whether a frame was taken.
+// ffmpeg writes no file and still exits 0, so success needs both a clean exit and the file.
 export async function extractFrame(
   input: string,
   output: string,
@@ -24,11 +24,16 @@ export async function extractFrame(
   run: (args: string[]) => Promise<void> = runFfmpeg,
 ): Promise<void> {
   const seconds = new Set([atSeconds ?? DEFAULT_FRAME_SECONDS, DEFAULT_FRAME_SECONDS, 0]);
+  let lastError: unknown = null;
   for (const second of seconds) {
-    await run(extractFrameArgs(input, output, second)).catch(() => {});
-    if (existsSync(output)) return;
+    try {
+      await run(extractFrameArgs(input, output, second));
+      if (existsSync(output)) return;
+    } catch (error) {
+      lastError = error;
+    }
   }
-  throw new Error(`ffmpeg took no frame from ${input}`);
+  throw new Error(`ffmpeg took no frame from ${input}`, { cause: lastError });
 }
 
 export function toWavArgs(input: string, output: string): string[] {

@@ -86,4 +86,27 @@ describe("extractFrame", () => {
   it("fails when no frame can be taken", async () => {
     await assert.rejects(extractFrame("in.mp4", await framePath(), undefined, async () => {}), /no frame/);
   });
+
+  it("does not trust a file ffmpeg left behind when it failed", async () => {
+    const output = await framePath();
+    const seconds: number[] = [];
+
+    await extractFrame("in.mp4", output, 5, async (args) => {
+      const second = secondOf(args);
+      seconds.push(second);
+      await writeFile(output, second === 5 ? "partial" : "jpg");
+      if (second === 5) throw new Error("corrupt stream");
+    });
+
+    assert.deepEqual(seconds, [5, 1]);
+  });
+
+  it("reports ffmpeg's own error when every try fails", async () => {
+    await assert.rejects(
+      extractFrame("in.mp4", await framePath(), undefined, async () => {
+        throw new Error("ffmpeg: not found");
+      }),
+      (error: Error) => error.cause instanceof Error && /ffmpeg: not found/.test(error.cause.message),
+    );
+  });
 });

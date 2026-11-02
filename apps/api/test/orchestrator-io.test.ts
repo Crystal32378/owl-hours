@@ -285,6 +285,24 @@ describe("createMediaReader", () => {
     assert.equal(reading.shutOffWontHelp, false);
   });
 
+  it("asks SAM its own word when the name Spark chose finds nothing", async () => {
+    const asked: (string | undefined)[] = [];
+    const { pipeline } = await fakePipeline({
+      triage: async () => ({ ...HELPS, valveObject: "shut-off valve" }),
+      markValve: async (_frame, _url, concept) => {
+        asked.push(concept);
+        return concept
+          ? { kind: "fallback", advice: "Look under the tank." }
+          : { kind: "marked", markedFramePath: "/tmp/marked.jpg", detection: { frame: 0, objectId: 0, box: { x1: 1, y1: 2, x2: 3, y2: 4 }, width: 9, height: 9, confidence: 0.5 } };
+      },
+    });
+
+    const reading = await createMediaReader(pipeline)(video);
+
+    assert.deepEqual(asked, ["shut-off valve", undefined]);
+    assert.equal(reading.markedFrameUrl, "https://example.supabase.co/marked.jpg");
+  });
+
   it("keeps the valve search when Spark is unsure", async () => {
     const { pipeline, calls } = await fakePipeline({ triage: async () => ({ ...HELPS, waterShutOff: "unclear" }) });
 

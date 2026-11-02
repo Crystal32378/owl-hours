@@ -216,7 +216,8 @@ describe("respond: urgent leak", () => {
 
     assert.match(queued[0]?.message.body ?? "", /Closing your water valve won't stop this/);
     assert.match(queued[0]?.message.body ?? "", /outlets or cables/);
-    assert.equal(queued[0]?.message.kind, "text");
+    // The store reads this variant as a finished safety step, so the next message cannot send the valve card.
+    assert.equal(queued[0]?.message.payload?.variant, "safety_text");
     assert.equal(queued[1]?.message.kind, "location_request");
   });
 

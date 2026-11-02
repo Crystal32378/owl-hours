@@ -81,7 +81,9 @@ export function waterSafety(input: { markedFrameUrl: string | null; advice: stri
 }
 
 export const shutOffWontHelp = (): ZukkiMessage =>
-  text("Closing your water valve won't stop this one. Keep clear of any outlets or cables near the water while I find you help.");
+  text("Closing your water valve won't stop this one. Keep clear of any outlets or cables near the water while I find you help.", {
+    variant: "safety_text",
+  });
 
 export const cantFindValve = (): ZukkiMessage =>
   text(

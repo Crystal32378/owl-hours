@@ -90,7 +90,9 @@ async function findValve(
 ): Promise<ValveResult> {
   if (!triage) return pipeline.markValve(framePath, imageUrl);
   if (!triage.valveObject) return { kind: "fallback", advice: GENERIC_VALVE_ADVICE };
-  return pipeline.markValve(framePath, imageUrl, triage.valveObject);
+  const named = await pipeline.markValve(framePath, imageUrl, triage.valveObject);
+  // SAM answers nothing for some longer names of a valve it can see, such as "shut-off valve".
+  return named.kind === "marked" ? named : pipeline.markValve(framePath, imageUrl);
 }
 
 // Only folders this module's downloads create (os.tmpdir()/zukki-*).
