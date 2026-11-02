@@ -25,3 +25,21 @@ export const native = {
     badge: { size: 18, bg: "#c9303a", text: "#ffffff" },  // solid red count only, never a pastel chip
   },
 } as const;
+
+// Dark mode: the second value of each Astryx Neutral light-dark() pair; the Zukki blue stays.
+const darkColor = {
+  ...native.color,
+  bgBody: "#1b1b1b",
+  bgCard: "#1b1b1b",
+  text: "#ffffff",
+  textSecondary: "#9e9e9e",
+  iconSecondary: "#9e9e9e",
+  border: "#ffffff1A",
+} as const;
+
+export type NativeColors = { [K in keyof typeof native.color]: string };
+
+// The scheme comes from React Native's useColorScheme(); unknown means light, the app default.
+export function nativeColors(scheme: "light" | "dark" | null | undefined): NativeColors {
+  return scheme === "dark" ? darkColor : native.color;
+}

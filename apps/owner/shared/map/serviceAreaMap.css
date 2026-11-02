@@ -1,0 +1,15 @@
+/* The MapLibre canvas, clipped to its container's rounded corners. Each screen sets the size. */
+.zukki-area-map {
+  position: relative;
+  overflow: hidden;
+}
+
+/* MapLibre's attribution bar is white-on-light by default; on tokens it reads in both modes. */
+.zukki-area-map .maplibregl-ctrl.maplibregl-ctrl-attrib {
+  background: color-mix(in srgb, var(--color-background-card) 85%, transparent);
+  color: var(--color-text-secondary);
+}
+
+.zukki-area-map .maplibregl-ctrl-attrib a {
+  color: var(--color-text-primary);
+}
