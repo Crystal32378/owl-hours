@@ -22,7 +22,8 @@ begin
   assert jsonb_array_length(b -> 'prices') = 2, 'callout and repair range are prices';
   assert (b -> 'prices' -> 0) - 'id' = '{"label": "Visit", "amount": 45, "from": false}'::jsonb, 'visit first';
   assert (b -> 'prices' -> 1) - 'id' = '{"label": "Leak repair", "amount": 60, "from": true}'::jsonb, 'repair range reads from';
-  assert (b -> 'fees' -> 0) - 'id' = '{"label": "Night fee", "amount": 25, "window": "10 PM-7 AM"}'::jsonb, 'night fee';
+  assert (b -> 'fees' -> 0) - 'id' = '{"label": "Night fee", "amount": 25, "window": "10 PM-7 AM", "atNight": true}'::jsonb,
+    'night fee, read as at night';
   assert jsonb_array_length(b -> 'hours') = 6, 'Mon-Sat';
   assert b -> 'hours' -> 0 = '{"weekday": 1, "opens": "08:00", "closes": "18:00"}'::jsonb, 'Monday hours';
   assert (b -> 'area' ->> 'radiusKm')::numeric = 8, 'radius';
