@@ -11,7 +11,7 @@ import { TextInput } from '@astryxdesign/core/TextInput';
 import { Switch } from '@astryxdesign/core/Switch';
 import { Check, Pencil, Plus, Trash2 } from 'lucide-react';
 import type { ExtraFee, FeeInput } from '../../../shared/data/types.ts';
-import { hasNoFees } from '../lib/feeDraft';
+import { canAddFee, hasNoFees } from '../lib/feeDraft';
 import { feeAmountText, feeLabelText } from '../lib/priceFields';
 import { feesCopys } from '../copys/feesCopys';
 
@@ -48,9 +48,11 @@ export default function FeeEditor(props: {
           </>
         )}
       </Card>
-      <div>
-        <Button label={feesCopys.addFee} variant="ghost" size="lg" icon={<Plus size={20} />} onClick={addFee} />
-      </div>
+      {canAddFee(props.drafts) && (
+        <div>
+          <Button label={feesCopys.addFee} variant="ghost" size="lg" icon={<Plus size={20} />} onClick={addFee} />
+        </div>
+      )}
     </>
   );
 

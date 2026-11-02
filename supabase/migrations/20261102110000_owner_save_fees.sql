@@ -76,6 +76,15 @@ as $$
 declare
   v_id uuid := private.caller_owned_business_id();
 begin
+  -- Owners can call this straight through PostgREST, so it keeps the API's limits itself.
+  if jsonb_array_length(p_fees) > 20 then
+    raise exception 'at most 20 fees' using errcode = '22023';
+  end if;
+  if exists (select 1 from jsonb_to_recordset(p_fees) as l(amount integer)
+             where l.amount is null or l.amount not between 1 and 1000000) then
+    raise exception 'a fee amount is a whole number from 1 to 1,000,000' using errcode = '22023';
+  end if;
+
   delete from public.price_rules p
   where p.tenant_id = v_id and p.kind in ('night_fee', 'extra_fee') and not p.at_cost
     and not exists (select 1 from jsonb_array_elements(p_fees) e where e ->> 'id' = p.id::text);

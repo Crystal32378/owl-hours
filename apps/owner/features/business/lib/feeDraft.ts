@@ -16,8 +16,17 @@ export function hasNoFees(drafts: FeeInput[], fixed: ExtraFee[]): boolean {
   return drafts.length === 0 && fixed.length === 0;
 }
 
+// The same limits PUT /business/fees and owner_save_fees enforce.
+export const MAX_FEES = 20;
+export const MAX_FEE_LABEL = 80;
+
 export function isCompleteFee(fee: FeeInput): boolean {
-  return fee.label.trim() !== "" && isValidPrice(fee.amount);
+  const label = fee.label.trim();
+  return label !== "" && label.length <= MAX_FEE_LABEL && isValidPrice(fee.amount);
+}
+
+export function canAddFee(drafts: FeeInput[]): boolean {
+  return drafts.length < MAX_FEES;
 }
 
 // A fee opened with "Add a fee" and left blank, or named but still at $0, is never saved.

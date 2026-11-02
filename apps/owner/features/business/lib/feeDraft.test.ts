@@ -4,7 +4,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import type { ExtraFee } from "../../../shared/data/types.ts";
-import { completeFees, editableFees, fixedFees, hasNoFees, isCompleteFee, withSavedFees } from "./feeDraft.ts";
+import { MAX_FEES, canAddFee, completeFees, editableFees, fixedFees, hasNoFees, isCompleteFee, withSavedFees } from "./feeDraft.ts";
 
 const night: ExtraFee = { id: "f1", label: "Night", amount: 25, window: "10 PM–7 AM", atNight: true };
 const weekend: ExtraFee = { id: "f2", label: "Weekend", amount: 15, atNight: false };
@@ -50,6 +50,7 @@ describe("isCompleteFee", () => {
   it("needs a name and a positive whole amount", () => {
     assert.equal(isCompleteFee({ id: "a", label: "Weekend", amount: 15, atNight: false }), true);
     assert.equal(isCompleteFee({ id: "a", label: "  ", amount: 15, atNight: false }), false);
+    assert.equal(isCompleteFee({ id: "a", label: "x".repeat(81), amount: 15, atNight: false }), false, "longer than the API's 80");
     assert.equal(isCompleteFee({ id: "a", label: "Weekend", amount: 0, atNight: false }), false);
     assert.equal(isCompleteFee({ id: "a", label: "Weekend", amount: 2.5, atNight: false }), false);
   });
@@ -85,5 +86,15 @@ describe("withSavedFees", () => {
     assert.deepEqual(withSavedFees([night], [{ id: "f1", label: "Night", amount: 25, atNight: false }]), [
       { id: "f1", label: "Night", amount: 25, atNight: false },
     ]);
+  });
+});
+
+describe("canAddFee", () => {
+  it("stops at the API's limit of 20 fees", () => {
+    const fees = (count: number) => Array.from({ length: count }, (_, n) => ({ id: `f${n}`, label: "Fee", amount: 5, atNight: false }));
+
+    assert.equal(MAX_FEES, 20);
+    assert.equal(canAddFee(fees(19)), true);
+    assert.equal(canAddFee(fees(20)), false);
   });
 });

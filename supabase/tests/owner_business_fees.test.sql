@@ -112,3 +112,20 @@ do $$ begin
 exception when sqlstate 'P0002' then null;
 end $$;
 rollback;
+
+\echo '# called straight through PostgREST, the function keeps the API limits'
+begin;
+set local role authenticated;
+set local request.jwt.claims to :'mario';
+do $$
+declare rejected int := 0;
+begin
+  begin perform public.owner_save_fees('[{"label":"Free","amount":0,"atNight":false}]'::jsonb);
+  exception when invalid_parameter_value then rejected := rejected + 1; end;
+  begin perform public.owner_save_fees('[{"label":"Huge","amount":1000001,"atNight":false}]'::jsonb);
+  exception when invalid_parameter_value then rejected := rejected + 1; end;
+  begin perform public.owner_save_fees((select jsonb_agg(jsonb_build_object('label', 'Fee ' || n, 'amount', 5, 'atNight', false)) from generate_series(1, 21) n));
+  exception when invalid_parameter_value then rejected := rejected + 1; end;
+  assert rejected = 3, 'zero, oversized amounts and more than 20 fees are refused (got ' || rejected || ')';
+end $$;
+rollback;
