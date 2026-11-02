@@ -2,14 +2,14 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 
 import { useEffect, useRef, useState, type RefObject } from 'react';
 import { Map as MapLibreMap, Marker, type GeoJSONSource } from 'maplibre-gl';
-import type { GeoPoint } from '../lib/areaLocation';
-import { circleBounds, mapStyleUrl, OVERVIEW_CAMERA, radiusCircle, toGeoPoint } from '../lib/areaMap';
+import type { GeoPoint } from '../data/types';
+import { circleBounds, mapStyleUrl, OVERVIEW_CAMERA, radiusCircle, toGeoPoint } from './areaMap';
 
 // The service-area map (MapLibre GL JS, https://maplibre.org/maplibre-gl-js/docs/API/classes/Map/)
 // rendered inside the area step's DOM screen. It only draws: the business point and
 // radius come in as props, and a dropped pin goes back out through onMove.
 // With no center it shows the world overview, with no pin and no circle.
-export default function AreaMap(props: {
+export default function ServiceAreaMap(props: {
   center: GeoPoint | null;
   radiusKm: number;
   label: string;

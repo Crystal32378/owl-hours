@@ -19,7 +19,7 @@ import { onboardingCopys } from '../copys/onboardingCopys';
 import type { GeoPoint } from '../lib/areaLocation';
 import { MAX_RADIUS_KM, MIN_RADIUS_KM } from '../lib/areaRadius';
 import { radiusText } from '../lib/priceText';
-import AreaMap from './AreaMap';
+import ServiceAreaMap from '../../../shared/map/ServiceAreaMap';
 import OnboardingFrame from './OnboardingFrame';
 import SetupStepHeader from './SetupStepHeader';
 
@@ -59,7 +59,7 @@ export default function AreaScreen(props: {
       <Card padding={3}>
         <VStack gap={3}>
           <VStack gap={1}>
-            <AreaMap
+            <ServiceAreaMap
               center={props.mapCenter}
               radiusKm={radius}
               label={onboardingCopys.mapAlt}
