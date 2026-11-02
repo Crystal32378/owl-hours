@@ -43,9 +43,13 @@ export default function HoursScreen(props: {
 
   async function save() {
     setIsSaving(true);
-    const saved = await props.onSave(toShifts(days));
-    setSaveFailed(!saved);
-    setIsSaving(false);
+    try {
+      setSaveFailed(!(await props.onSave(toShifts(days))));
+    } catch {
+      setSaveFailed(true);
+    } finally {
+      setIsSaving(false);
+    }
   }
 
   return (

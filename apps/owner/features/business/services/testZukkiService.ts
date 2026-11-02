@@ -145,12 +145,13 @@ const PRICE_WORDS = ["visit", "how much", "price", "cost", "cuánto", "cuanto", 
 function answerFromDemoBusiness(asked: string): TestZukkiAnswer | null {
   const services = DEMO_SERVICES.filter((service) => mentions(asked, service.words));
   const isAboutNight = mentions(asked, NIGHT_WORDS);
-  const isAboutPrice = services.length > 0 || mentions(asked, PRICE_WORDS);
   const isAboutHours = !isAboutNight && mentions(asked, HOURS_WORDS);
-  if (!isAboutPrice && !isAboutNight && !isAboutHours) return null;
+  if (services.length === 0 && !isAboutNight && !isAboutHours) {
+    return mentions(asked, PRICE_WORDS) ? visitPriceAnswer() : null;
+  }
 
   const parts = [
-    ...(isAboutPrice ? [{ source: "Visit", sentence: `The visit is $${priceOf("Visit")}.` }] : []),
+    ...(services.length > 0 ? [{ source: "Visit", sentence: `The visit is $${priceOf("Visit")}.` }] : []),
     ...services.map(({ price }) => ({ source: price, sentence: `${price} starts at $${priceOf(price)}.` })),
     ...(isAboutNight ? [{ source: "Night fee", sentence: nightSentence() }] : []),
     ...(isAboutHours ? [{ source: "Hours", sentence: `We're open ${business.hours.summary}, with urgent jobs at night.` }] : []),
@@ -158,6 +159,14 @@ function answerFromDemoBusiness(asked: string): TestZukkiAnswer | null {
   return {
     text: [`${business.name} can help.`, ...parts.map((part) => part.sentence)].join(" "),
     sources: parts.map((part) => part.source),
+  };
+}
+
+// No service named, and it may not be one the business offers: only the visit price is certain.
+function visitPriceAnswer(): TestZukkiAnswer {
+  return {
+    text: `A visit from ${business.name} is $${priceOf("Visit")}. Tell me what needs fixing and I'll give you its price.`,
+    sources: ["Visit"],
   };
 }
 
