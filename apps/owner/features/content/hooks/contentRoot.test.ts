@@ -41,6 +41,12 @@ describe("contentRootFor live", () => {
     assert.deepEqual(calls, ["GET /linked-accounts"]);
   });
 
+  it("offers Connect Facebook and Instagram", () => {
+    const { api } = recordingApi({});
+
+    assert.equal(contentRootFor(api).accountsService.canConnect, true);
+  });
+
   it("does not offer Regenerate", () => {
     const { api } = recordingApi({});
 
@@ -53,6 +59,7 @@ describe("contentRootFor demo", () => {
     const root = contentRootFor(null);
 
     assert.deepEqual(await root.accountsService.getAccounts(), mockAccounts);
+    assert.equal(root.accountsService.canConnect, false);
     assert.equal(root.postsService.canRegenerate, true);
   });
 });

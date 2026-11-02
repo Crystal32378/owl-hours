@@ -52,4 +52,27 @@ describe("live accounts client", () => {
 
     await assert.rejects(client.listAccounts());
   });
+
+  it("answers the Facebook Login URL from GET /meta/connect-url (odd/tasks/owner-meta-publishing.md S4)", async () => {
+    const url = "https://www.facebook.com/v26.0/dialog/oauth?client_id=1234567890123&state=v1.abc.def";
+    const { client, calls } = fakeAccountsApi(Response.json({ success: true, data: { url } }));
+
+    assert.equal(await client.connectUrl?.(), url);
+    assert.deepEqual(calls, [`GET ${API}/v1/owner/meta/connect-url`]);
+  });
+
+  it("refuses a connect URL that is not Facebook's login dialog", async () => {
+    const { client } = fakeAccountsApi(Response.json({ success: true, data: { url: "https://evil.example/dialog/oauth" } }));
+
+    await assert.rejects(client.connectUrl?.() ?? Promise.resolve(), /Facebook/);
+  });
+
+  it("rejects with the API's message when Facebook is not configured", async () => {
+    const { client } = fakeAccountsApi(Response.json(
+      { success: false, error: { code: "not_configured", message: "Facebook and Instagram are not configured on this server." } },
+      { status: 503 },
+    ));
+
+    await assert.rejects(client.connectUrl?.() ?? Promise.resolve(), /not configured/);
+  });
 });

@@ -5,6 +5,7 @@ export const contentCopys = {
   // Verbatim strings required by tests and screens
   madeFromJobsAndPrices: "Made from your jobs and prices",
   approveAndPost: "Approve and post",
+  postFailed: "The post could not be published. Try again.",
   regenerate: "Regenerate",
   edit: "Edit",
   seeTodaysDrafts: "See today's drafts",
@@ -40,6 +41,16 @@ export const contentCopys = {
   canDoDrafts: "Draft posts from your finished jobs and your prices",
   canDoTiming: "Suggest the best day and time to post",
   cannotPublish: "Publish anything without your approval",
+  connectFacebookInstagram: "Connect Facebook and Instagram",
+  noLinkedAccounts: "No Facebook Page or Instagram account is connected yet.",
+  linkNotices: {
+    linked: "Facebook and Instagram are connected.",
+    denied: "Facebook Login was cancelled. Nothing was connected.",
+    no_pages: "No Facebook Page was shared. Connect again and choose your business Page.",
+    forbidden: "Only the business owner can connect accounts.",
+    invalid_state: "The connection expired. Try again.",
+    failed: "Facebook could not connect. Try again.",
+  },
 
   // Account kinds map
   accountLabels: {

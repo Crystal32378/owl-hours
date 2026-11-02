@@ -16,6 +16,7 @@ import { Button } from '@astryxdesign/core/Button';
 import { Check, X } from 'lucide-react';
 import { contentCopys } from '../copys/contentCopys';
 import type { LinkedAccount } from '../../../shared/data/types';
+import type { LinkNotice } from '../lib/linkNotice';
 import ContentTopBar from './ContentTopBar';
 
 const CAN_DO_ITEMS = [
@@ -26,12 +27,16 @@ const CAN_DO_ITEMS = [
 
 export default function AccountsScreen(props: {
   accounts: LinkedAccount[];
+  canConnect: boolean;
+  // What Facebook Login answered when it sent the owner back, or a failed connect link.
+  notice: LinkNotice | null;
   insets: { top: number; bottom: number };
   onBack: () => Promise<void>;
+  onConnect: () => Promise<void>;
   onSeeDrafts: () => Promise<void>;
   dom?: DOMProps;
 }) {
-  const { insets, accounts } = props;
+  const { insets, accounts, canConnect, notice } = props;
 
   return (
     <Theme theme={neutralTheme}>
@@ -54,9 +59,20 @@ export default function AccountsScreen(props: {
 
         {/* Content body */}
         <div style={{ flex: 1, padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {notice && (
+            <Text style={{ fontSize: 15, color: notice.tone === 'error' ? 'var(--color-error)' : 'var(--color-success)' }}>
+              {notice.text}
+            </Text>
+          )}
+
           {/* Accounts list card */}
           <Card padding={4}>
             <VStack gap={0}>
+              {accounts.length === 0 && (
+                <Text type="supporting" style={{ fontSize: 15, padding: '14px 0' }}>
+                  {contentCopys.noLinkedAccounts}
+                </Text>
+              )}
               {accounts.map((account, index) => {
                 const label = contentCopys.accountLabels[account.kind];
                 const subtitle = account.name;
@@ -124,6 +140,15 @@ export default function AccountsScreen(props: {
               ))}
             </VStack>
           </Card>
+
+          {canConnect && (
+            <Button
+              label={contentCopys.connectFacebookInstagram}
+              variant="secondary"
+              size="lg"
+              onClick={() => void props.onConnect()}
+            />
+          )}
 
           <Button
             label={contentCopys.seeTodaysDrafts}

@@ -35,6 +35,8 @@ export default function PostReviewRoute() {
       jobPhotos={view.jobPhotos}
       canApprove={view.canApprove}
       canRegenerate={view.canRegenerate}
+      isPosting={view.isPosting}
+      approveError={view.approveError}
       insets={safeInsets}
       onBack={async () => {
         router.back();
@@ -43,6 +45,7 @@ export default function PostReviewRoute() {
       onCaptionChange={view.onSetCaption}
       onTargetToggle={view.onToggleTarget}
       onApprove={async () => {
+        // Published only after the API confirms; a failure stays here with the API's message.
         const approved = await view.onApprove();
         if (approved) {
           await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);

@@ -5,15 +5,24 @@ import type { LinkedAccount } from "../../../shared/data/types.ts";
 
 export type AccountsClient = {
   listAccounts(): Promise<LinkedAccount[]>;
+  // The Facebook Login URL; absent in the demo, which links nothing.
+  connectUrl?(): Promise<string>;
 };
 
 export type AccountsService = {
+  canConnect: boolean;
   getAccounts(): Promise<LinkedAccount[]>;
+  getConnectUrl(): Promise<string>;
 };
 
 export function createAccountsService(client: AccountsClient): AccountsService {
   return {
+    canConnect: Boolean(client.connectUrl),
     getAccounts: () => client.listAccounts(),
+    getConnectUrl: async () => {
+      if (!client.connectUrl) throw new Error("Connecting accounts needs the live owner API.");
+      return client.connectUrl();
+    },
   };
 }
 

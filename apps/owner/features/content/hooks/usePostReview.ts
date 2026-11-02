@@ -21,6 +21,10 @@ export type PostReviewView = {
   jobPhotos: ResolvedJobPhotos | null;
   canApprove: boolean;
   canRegenerate: boolean;
+  // While the API reviews and posts; a second tap would post twice.
+  isPosting: boolean;
+  // The API's message when posting failed; the post then stays approved and Approve and post retries.
+  approveError: string | null;
   onSetCaption: (caption: string) => Promise<void>;
   onToggleTarget: (target: "facebook" | "instagram") => Promise<void>;
   onToggleEditCaption: () => Promise<void>;
@@ -58,6 +62,8 @@ export function usePostReview(
     instagram: true,
   });
   const [status, setStatus] = useState<"loading" | "error" | "ready">("loading");
+  const [isPosting, setIsPosting] = useState(false);
+  const [approveError, setApproveError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -126,8 +132,10 @@ export function usePostReview(
     targets,
     scheduledWhenText,
     jobPhotos,
-    canApprove,
+    canApprove: canApprove && !isPosting,
     canRegenerate: service.canRegenerate,
+    isPosting,
+    approveError,
     onSetCaption: async (newCaption: string) => {
       setCaption(newCaption);
     },
@@ -141,11 +149,16 @@ export function usePostReview(
       setIsEditingCaption((prev) => !prev);
     },
     onApprove: async () => {
-      const result = await service.approve(draft.id, {
-        caption,
-        targets,
-      });
-      return result;
+      setIsPosting(true);
+      setApproveError(null);
+      try {
+        return await service.approve(draft.id, { caption, targets });
+      } catch (error) {
+        setApproveError(error instanceof Error ? error.message : contentCopys.postFailed);
+        return null;
+      } finally {
+        setIsPosting(false);
+      }
     },
     onRegenerate: async () => {
       const result = await service.regenerate(draft.id);
