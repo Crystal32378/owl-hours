@@ -36,6 +36,43 @@ describe("pickValve", () => {
 });
 
 describe("markValve", () => {
+  it("asks SAM for a plain 'valve': on a photo of a valve, 'shut-off valve' returned nothing", async () => {
+    const concepts: string[] = [];
+
+    await markValve({
+      framePath: "/tmp/frame.jpg",
+      imageUrl: "data:image/jpeg;base64,AAAA",
+      segment: async (concept) => {
+        concepts.push(concept);
+        return [];
+      },
+      drawOverlay: async () => "/tmp/marked.jpg",
+    });
+
+    assert.deepEqual(concepts, ["valve"]);
+  });
+
+  it("uses the object name it is given", async () => {
+    const concepts: string[] = [];
+
+    await markValve({
+      framePath: "/tmp/frame.jpg",
+      imageUrl: "data:image/jpeg;base64,AAAA",
+      concept: "angle stop",
+      segment: async (concept) => {
+        concepts.push(concept);
+        return [];
+      },
+      drawOverlay: async () => "/tmp/marked.jpg",
+    });
+
+    assert.deepEqual(concepts, ["angle stop"]);
+  });
+
+  it("gives advice that fits a photo as well as a video", () => {
+    assert.doesNotMatch(GENERIC_VALVE_ADVICE, /your video/);
+  });
+
   it("returns the marked frame when SAM is confident", async () => {
     const drawn: string[] = [];
     const result = await markValve({
@@ -77,17 +114,4 @@ describe("markValve", () => {
     assert.equal(drew, false);
   });
 
-  it("asks SAM for the shut-off valve concept", async () => {
-    const concepts: string[] = [];
-    await markValve({
-      framePath: "f.jpg",
-      imageUrl: "data:x",
-      segment: async (concept) => {
-        concepts.push(concept);
-        return [];
-      },
-      drawOverlay: async () => "x",
-    });
-    assert.deepEqual(concepts, ["shut-off valve"]);
-  });
 });
