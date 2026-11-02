@@ -17,8 +17,8 @@ Objective: anyone can run the customer flow from a clean clone, and our e2e flow
 
 ## Tasks
 
-- T1 (S3, inline) Loopback overrides for the Graph host and the model base URL. Status: pending.
-- T2 (S3, S4, S5, inline) Fake WhatsApp server and media e2e. Status: pending.
+- T1 (S3, inline) Loopback overrides for the Graph host and the model base URL. Status: done, 9e355e7.
+- T2 (S3, S4, S5, inline) Fake WhatsApp server and media e2e. Status: done, 9e355e7.
 - T3 (S2, S6, S7, inline) Recorded models, judge command and USAGE. Status: pending.
 
 Route: inline; no writer trigger (one behavior chain, each step depends on the last).
@@ -27,3 +27,5 @@ Route: inline; no writer trigger (one behavior chain, each step depends on the l
 
 - L1 (2026-11-01, user): "arregla todos esos detalles, haz flujos e2e, checa que se está consumiendo la api y que no son datos estáticos."
 - L2 (2026-11-02, Discord paste): hosting not required; see S2. Whether judges may use their own Meta key remains unanswered there; the official rules page returned 404.
+- L3 (2026-11-02): on the local stack with fake WhatsApp credentials and the real key: media-flow PASS (different readings; marked frame sent), rejected key PASS (no reading, customer gets the category list again), run-live.sh PASS (job customer_approved), run-live-owner.sh PASS (business, prices, content from the database; switch writes accepts_now), run-live-onboarding.sh flow PASS with row owner-1793599677@e2e.example|plomeria|owner|1 area|21.162,-86.852. The demo owner's re-sign-in failed once on a Maestro openLink, passed on retry.
+- L4 (2026-11-02): sample media generated with muse-image-1.0 so no real home goes in the public repo. The answers in scripts/local/recordings/demo.json were recorded from real runs.
