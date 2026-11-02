@@ -211,6 +211,31 @@ describe("live onboarding business location", () => {
   });
 });
 
+// Spec: odd/tasks/owner-area-map-fees-dark.md, T1, S1. The map centres on the saved area centre.
+describe("live onboarding area map centre", () => {
+  it("S1 reads the area centre from GET /business", async () => {
+    const { service } = liveOnboarding();
+
+    assert.deepEqual(await service.getCenter(), { lat: 21.16, lng: -86.85 });
+  });
+
+  it("S1 a new business without an area reads the placeholder point", async () => {
+    const { service } = liveOnboarding(() => ok(newBusiness));
+
+    assert.deepEqual(await service.getCenter(), { lat: 0, lng: 0 });
+  });
+
+  it("S1 an account without a business reads the placeholder point", async () => {
+    const { service } = liveOnboarding(() => NO_BUSINESS);
+
+    assert.deepEqual(await service.getCenter(), { lat: 0, lng: 0 });
+  });
+
+  it("S1 the demo business reads its own area centre", async () => {
+    assert.deepEqual(await demoOnboardingService.getCenter(), mockBusiness.area.center);
+  });
+});
+
 describe("onboardingServiceFor with the live owner API", () => {
   it("runs the steps on the API, so live shows the saved business name and radius", async () => {
     const codeAuth: CodeAuth = { sendCode: async () => true, verifyCode: async () => true };

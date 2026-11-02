@@ -44,6 +44,7 @@ export type OnboardingService = {
   getArea(): Promise<OnboardingArea>;
   saveArea(area: OnboardingArea): Promise<void>;
   getLocationStatus(): Promise<LocationStatus>;
+  getCenter(): Promise<GeoPoint>;
   saveLocation(point: GeoPoint, radiusKm: number): Promise<void>;
   getHoursSummary(): Promise<string>;
   getNightUrgent(): Promise<boolean>;
@@ -75,6 +76,7 @@ export type OnboardingClient = {
   findArea(): Promise<{ radiusKm: number; nightUrgent: boolean } | null>;
   saveArea(area: { radiusKm: number; nightUrgent: boolean }): Promise<void>;
   findLocationStatus(): Promise<LocationStatus>;
+  findCenter(): Promise<GeoPoint>;
   saveLocation(point: GeoPoint, radiusKm: number): Promise<void>;
   findFees(): Promise<ExtraFee[]>;
   findHoursSummary(): Promise<string>;
@@ -101,6 +103,7 @@ export function createOnboardingService(
     getArea: () => currentArea(client),
     saveArea: (area) => keepNightUrgent(client, area),
     getLocationStatus: () => client.findLocationStatus(),
+    getCenter: () => client.findCenter(),
     saveLocation: (point, radiusKm) => client.saveLocation(point, radiusKm),
     getHoursSummary: () => client.findHoursSummary(),
     getNightUrgent: async () => (await storedArea(client)).nightUrgent,
@@ -145,6 +148,7 @@ export function createFakeOnboardingClient(): OnboardingClient {
     },
     // The demo business has its location preset, so the area step never asks for one.
     findLocationStatus: async () => "preset",
+    findCenter: async () => structuredClone(seedBusiness.area.center),
     saveLocation: async () => {},
     findFees: async () => structuredClone(seedBusiness.fees),
     findHoursSummary: async () => seedBusiness.hours.summary,
