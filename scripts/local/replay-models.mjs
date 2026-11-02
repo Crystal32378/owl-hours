@@ -54,7 +54,8 @@ function nextRecording(key) {
   if (!answers) return undefined;
   const turn = served.get(key) ?? 0;
   served.set(key, turn + 1);
-  return answers[Math.min(turn, answers.length - 1)];
+  // In a cycle, so every customer of a run gets the same answers as the first.
+  return answers[turn % answers.length];
 }
 
 async function forwardAndKeep(request, response, path, body, key) {

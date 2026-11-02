@@ -585,5 +585,5 @@ it with a new one.
 - **Why:** the hackathon's judges run the project from the repo without an account on an outside service, and they cannot use our WhatsApp number. Hosting is not required.
 - **Replay stays honest:** the API logs `not calling Meta`, and a request with no recording gets an error, so other media get no reading instead of the sample's.
 - **Tokens stay safe:** `WHATSAPP_GRAPH_HOST` and `META_MODEL_BASE_URL` accept loopback URLs only, and production is unchanged when they are unset.
-- **Limits:** recordings cover the sample video and the demo script. The owner's AI-polished message is not recorded, so with no key polishing fails and the owner sends their own text.
+- **Limits:** recordings cover the sample video and the demo script. With no key, a message the owner types in the chat went out as written; polishing with Zukki's version was not tried.
 
