@@ -8,6 +8,13 @@ A person confirms every job.
 Full context: [docs/HANDOFF.md](docs/HANDOFF.md).
 How to run and demo it: [docs/USAGE.md](docs/USAGE.md).
 
+Try it with no accounts or keys (Docker, Node 24, pnpm and ffmpeg):
+
+```sh
+pnpm install
+bash scripts/local/judge.sh
+```
+
 UI handoff (current, Oct 27 decisions): [handoff-ui/HANDOFF-UI.md](handoff-ui/HANDOFF-UI.md) — WhatsApp payloads, Expo + Astryx owner app, demo path.
 
 ## Hackathon

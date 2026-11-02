@@ -25,7 +25,37 @@ Ensure your environment satisfies the following requirements before starting:
 
 ---
 
-## 3. Run Locally End to End
+## 3. Run It With No Accounts (Judges Start Here)
+
+One command runs everything on your machine: local Supabase with seed data, the API, a stand-in for WhatsApp, the owner app on the web, and one customer walked through the demo. No account, no key, and nothing reaches a real phone.
+
+You need Docker running, Node 24, pnpm and ffmpeg. The ports 3000, 4010, 4011, 8081 and Supabase's 54321-54324 must be free.
+
+```sh
+pnpm install
+bash scripts/local/judge.sh
+```
+
+When it finishes it prints where to look:
+
+- **Customer's messages**: `http://127.0.0.1:4010` shows what Zukki sent, including the photo with the shut-off valve marked.
+- **Owner app**: `http://localhost:8081`. Type any name, `mario@northside.example`, and accept the terms; the code arrives in Mailpit at `http://127.0.0.1:54324`. Then tap through the setup, which shows Northside's saved business, and open **Requests**.
+
+A request waits 5 minutes, then Zukki offers it to the next business. Press Enter in the terminal to send another customer.
+
+**Models: recorded or live.** Without a key, the models are answers recorded from real runs of `muse-spark-1.3` and `sam-3.1` (`scripts/local/recordings/demo.json`), and the API log says `not calling Meta`. They cover only the sample video and the demo script: any other request gets an error, never an invented answer. To call the real models, run it with your own key:
+
+```sh
+META_MODEL_API_KEY=your-key bash scripts/local/judge.sh
+```
+
+The sample video is made from a generated picture (`muse-image-1.0`), not a real home.
+
+To check the replies come from the models, with a key: `node scripts/e2e/media-flow.mjs` needs `META_APP_SECRET`, `WHATSAPP_PHONE_NUMBER_ID` and the stand-ins running, sends two different media, and fails if they get the same reading.
+
+---
+
+## 4. Run Locally With Your Own WhatsApp and Meta Keys
 
 The repository provides an automated script to bring up the entire local backing stack and configure local environment files.
 
@@ -34,7 +64,7 @@ The local boot script expects base secrets (WhatsApp and Meta keys) in `apps/api
 ```sh
 cp apps/api/.env.example apps/api/.env
 ```
-*(Values may remain empty or placeholder if WhatsApp sending is not configured; local mock webhooks bypass external Meta connectivity).*
+*(Without valid WhatsApp values the webhook answers 503 and nothing is sent. For a run with no keys, use section 3.)*
 
 ### Step 2: Start the local stack
 Run the local stack boot script:
@@ -63,7 +93,7 @@ Open `http://localhost:8081` in your browser.
 
 ---
 
-## 4. Sign In as the Demo Owner
+## 5. Sign In as the Demo Owner
 
 The owner application supports both live authentication against Supabase Auth and an offline demo fallback mode.
 
@@ -86,7 +116,7 @@ If running without `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_ANON_KEY
 
 ---
 
-## 5. Walk the Demo Flow
+## 6. Walk the Demo Flow
 
 Walk through the full end-to-end lifecycle from customer WhatsApp conversation to completed job and content review:
 
@@ -161,7 +191,7 @@ The local seed has no finished job with photos yet. Run `scripts/local/seed-cont
 
 ---
 
-## 6. Automated Live Flow and Verification Checks
+## 7. Automated Live Flow and Verification Checks
 
 ### Automated End-to-End Live Runner
 Run the automated end-to-end suite combining signed webhook execution and Maestro UI flows against the local stack:
@@ -197,7 +227,7 @@ Run the project's standard verification checks:
 
 ---
 
-## 7. Known Limits
+## 8. Known Limits
 
 Current architectural and deployment limits to keep in mind:
 - **Hosted Deployment**: Full production cloud hosting is not pre-configured; local execution relies on the containerized Supabase stack.
@@ -207,7 +237,7 @@ Current architectural and deployment limits to keep in mind:
 
 ---
 
-## 8. Run the Owner App on a Phone (Android APK, iOS)
+## 9. Run the Owner App on a Phone (Android APK, iOS)
 
 App identifiers: `com.owlhours.zukki.owner` on both platforms (`apps/owner/app.json`). Build profiles live in `apps/owner/eas.json`.
 
