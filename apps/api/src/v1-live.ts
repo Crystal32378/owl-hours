@@ -4,9 +4,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createChatCompletion, createMetaClient } from "@owl-hours/meta-models";
 import { createWhatsAppClient, type WhatsAppClient } from "@owl-hours/whatsapp";
-import { loadConfig, loadWhatsAppConfig, type ApiConfig, type WhatsAppConfig } from "./config.ts";
+import { loadConfig, loadMetaConfig, loadWhatsAppConfig, type ApiConfig, type WhatsAppConfig } from "./config.ts";
 import { createServiceClient } from "./db/client.ts";
 import { createSupabaseAuthenticator } from "./http/auth.ts";
+import type { MetaDeps } from "./meta/graph.ts";
 import type { V1Deps } from "./routes/v1.ts";
 import type { WebhookDeps } from "./routes/whatsapp.ts";
 import { createRespondDeps } from "./orchestrator/live.ts";
@@ -59,7 +60,7 @@ export function loadLiveDeps(env: Record<string, string | undefined> = process.e
   const client = waConfig
     ? createWhatsAppClient({ accessToken: waConfig.accessToken, phoneNumberId: waConfig.phoneNumberId, graphVersion: waConfig.graphVersion })
     : undefined;
-  const v1 = createLiveV1Deps(config, client);
+  const v1 = { ...createLiveV1Deps(config, client), meta: loadMetaDeps(env) };
   if (!waConfig || !client) {
     return { v1, whatsapp: { unavailable: waReason }, outbox: null, notices: null, recovery: null };
   }
@@ -95,6 +96,15 @@ export function loadLiveDeps(env: Record<string, string | undefined> = process.e
       ? { db: v1.serviceDb, enqueue, run: (ctx, turn) => runTurn({ db: v1.serviceDb, respond: respondTo }, ctx, turn), log }
       : null,
   };
+}
+
+// Facebook Login and posting stay off, with the reason, until META_* is complete.
+function loadMetaDeps(env: Record<string, string | undefined>): MetaDeps | Unavailable {
+  try {
+    return { config: loadMetaConfig(env) };
+  } catch (error) {
+    return { unavailable: reasonOf(error) };
+  }
 }
 
 async function uploadMedia(db: SupabaseClient, path: string, bytes: Uint8Array, contentType: string): Promise<void> {

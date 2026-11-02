@@ -8,6 +8,7 @@ import { requireOwner, type OwnerEnv } from "../http/auth.ts";
 import { rateLimit } from "../http/rate-limit.ts";
 import { errorResponse, ok, readId, readJson, readQuery } from "../http/respond.ts";
 import * as owner from "../services/owner-service.ts";
+import { metaConnectUrl, unlinkAccount } from "../services/owner-meta.ts";
 import type { V1Deps } from "./v1.ts";
 
 const limit = z.coerce.number().int().min(1).max(100).optional();
@@ -254,6 +255,8 @@ export function ownerRoutes(deps: V1Deps): Hono<OwnerEnv> {
     ok(c, await owner.handoffContentDraft(c.get("session"), readId(c))));
 
   app.get("/linked-accounts", async (c) => ok(c, await owner.listLinkedAccounts(c.get("session"))));
+  app.delete("/linked-accounts/:id", async (c) => ok(c, await unlinkAccount(c.get("session"), readId(c))));
+  app.get("/meta/connect-url", async (c) => ok(c, await metaConnectUrl(c.get("session"), deps)));
 
   app.post("/test-zukki", async (c) => {
     const body = await readJson(c, testZukkiBody);

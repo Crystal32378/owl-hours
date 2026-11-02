@@ -8,6 +8,8 @@ import type { WhatsAppClient } from "@owl-hours/whatsapp";
 import type { Authenticate } from "../http/auth.ts";
 import { clientAddress, rateLimit } from "../http/rate-limit.ts";
 import { HttpError, errorResponse } from "../http/respond.ts";
+import type { MetaDeps } from "../meta/graph.ts";
+import type { Unavailable } from "../v1-live.ts";
 import type { PipelineDeps } from "../worker/process-message.ts";
 import { internalRoutes } from "./v1-internal.ts";
 import { ownerRoutes } from "./v1-owner.ts";
@@ -22,6 +24,8 @@ export type V1Deps = {
   pipeline?: PipelineDeps;
   // Cloud API client; absent until the WHATSAPP_* settings are filled in.
   whatsapp?: Pick<WhatsAppClient, "send">;
+  // Facebook Login and Page / Instagram posting; absent until the META_* settings are filled in.
+  meta?: MetaDeps | Unavailable;
   now?: () => number;
 };
 
