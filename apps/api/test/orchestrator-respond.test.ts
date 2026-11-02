@@ -231,7 +231,7 @@ describe("respond: urgent leak", () => {
     assert.match(queued[2]?.message.body ?? "", /turn this valve clockwise/);
   });
 
-  it("offers the marked valve for later when closing it will not stop this leak", async () => {
+  it("shows the marked valve for later without promising it stops this, and still asks for the location", async () => {
     const { deps, queued } = setup({
       understanding: { category: "plumbing", urgent: false },
       reading: { analysis: "Your drain is leaking.", markedFrameUrl: "https://x.test/marked.jpg", shutOffWontHelp: true },
@@ -239,9 +239,72 @@ describe("respond: urgent leak", () => {
 
     await respond(deps, ctx(), { kind: "media", mediaId: MEDIA, mediaType: "video", caption: null });
 
-    assert.equal(queued[2]?.message.payload?.header_image_url, "https://x.test/marked.jpg");
-    assert.match(queued[2]?.message.body ?? "", /If it gets worse/);
-    assert.doesNotMatch(queued[2]?.message.body ?? "", /Let's stop the water first/);
+    const card = queued[2];
+    assert.equal(card?.message.payload?.header_image_url, "https://x.test/marked.jpg");
+    assert.match(card?.message.body ?? "", /If water gets out of hand/);
+    assert.doesNotMatch(card?.message.body ?? "", /to stop the water|Let's stop the water/);
+    // The store reads this as a finished safety step, so nothing waits on a button.
+    assert.equal(card?.message.payload?.variant, "safety_text");
+    assert.equal(queued[3]?.message.kind, "location_request");
+  });
+
+  it("gives the later-use card one Got it button", async () => {
+    const { deps, queued } = setup({
+      understanding: { category: "plumbing", urgent: false },
+      reading: { markedFrameUrl: "https://x.test/marked.jpg", shutOffWontHelp: true },
+    });
+
+    await respond(deps, ctx(), { kind: "media", mediaId: MEDIA, mediaType: "video", caption: null });
+
+    assert.deepEqual(buttonIds(queued[1]), ["safety_got_it"]);
+  });
+
+  it("asks nothing again when Got it comes after the location was asked", async () => {
+    const { deps, queued } = setup({ facts: { category: "plumbing", safety: "answered", locationAsked: true } });
+
+    await respond(deps, ctx(), button("safety_got_it", "Got it"));
+
+    assert.deepEqual(queued, []);
+  });
+
+  it("asks for the location on Got it when it was not asked, without saying the water is off", async () => {
+    const { deps, queued } = setup({ facts: { category: "plumbing", safety: "answered", locationAsked: false } });
+
+    await respond(deps, ctx(), button("safety_got_it", "Got it"));
+
+    assert.equal(queued[0]?.message.kind, "location_request");
+    assert.doesNotMatch(queued[0]?.message.body ?? "", /^(Good|Great|Thanks)/);
+  });
+
+  it("still answers Done on the original card when the location was already asked", async () => {
+    const { deps, queued } = setup({ facts: { category: "plumbing", safety: "answered", locationAsked: true } });
+
+    await respond(deps, ctx(), button("safety_done", "Done, no cables"));
+
+    assert.equal(queued[0]?.message.kind, "location_request");
+  });
+
+  it("keeps the reading when it cannot tell the category, then shows the list", async () => {
+    const { deps, queued } = setup({
+      understanding: new Error("Spark is down"),
+      reading: { analysis: "Please leave the kitchen now, I can see a cracked gas hose." },
+    });
+
+    await respond(deps, ctx(), { kind: "media", mediaId: MEDIA, mediaType: "image", caption: null });
+
+    assert.equal(queued[1]?.message.body, "Please leave the kitchen now, I can see a cracked gas hose.");
+    assert.equal(queued[2]?.message.payload?.variant, "category_list");
+  });
+
+  it("sends no reading for an off-topic message", async () => {
+    const { deps, queued } = setup({
+      understanding: { onTopic: false },
+      reading: { analysis: "I can see a sunset." },
+    });
+
+    await respond(deps, ctx(), { kind: "media", mediaId: MEDIA, mediaType: "image", caption: null });
+
+    assert.equal(queued.some((entry) => entry.message.body === "I can see a sunset."), false);
   });
 
   it("treats the need as urgent when Spark saw something serious", async () => {
@@ -255,14 +318,40 @@ describe("respond: urgent leak", () => {
     assert.deepEqual(buttonIds(queued[1]), ["safety_done", "safety_cant_find"]);
   });
 
-  it("sends the notice only for a photo or video it will read", async () => {
+  it("sends the notice for a photo or video in any category, but not for a voice note", async () => {
     const voice = setup({ understanding: { category: "plumbing", urgent: false } });
     await respond(voice.deps, ctx(), { kind: "media", mediaId: MEDIA, mediaType: "audio", caption: null });
     assert.doesNotMatch(voice.queued[0]?.message.body ?? "", /looking at what you sent/);
 
     const salon = setup({ facts: { category: "beauty" }, understanding: { category: "beauty", urgent: false } });
     await respond(salon.deps, ctx(), { kind: "media", mediaId: MEDIA, mediaType: "image", caption: null });
-    assert.doesNotMatch(salon.queued[0]?.message.body ?? "", /looking at what you sent/);
+    assert.match(salon.queued[0]?.message.body ?? "", /looking at what you sent/);
+  });
+
+  it("tells a customer in another category what it saw, and only looks for a valve in plumbing", async () => {
+    const { deps, queued, asked } = setup({
+      facts: { category: "auto" },
+      understanding: { category: "auto", urgent: false },
+      reading: { analysis: "I can see a dent in your rear bumper." },
+    });
+
+    await respond(deps, ctx(), { kind: "media", mediaId: MEDIA, mediaType: "image", caption: null });
+
+    assert.equal(asked.findValve, false);
+    assert.equal(queued[1]?.message.body, "I can see a dent in your rear bumper.");
+  });
+
+  it("gives the electrical safety step when Spark saw something serious", async () => {
+    const { deps, queued } = setup({
+      facts: { category: "electrical" },
+      understanding: { category: "electrical", urgent: false },
+      reading: { analysis: "I can see a burnt outlet. Please don't touch it.", serious: true },
+    });
+
+    await respond(deps, ctx(), { kind: "media", mediaId: MEDIA, mediaType: "image", caption: null });
+
+    assert.equal(queued[1]?.message.body, "I can see a burnt outlet. Please don't touch it.");
+    assert.equal(queued[2]?.message.payload?.variant, "safety_text");
   });
 
   it("never says to close a valve when that will not stop the water, and moves on to the location", async () => {

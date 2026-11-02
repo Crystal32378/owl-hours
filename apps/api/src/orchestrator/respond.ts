@@ -73,6 +73,10 @@ async function businessDisplayName(deps: RespondDeps, businessId: string): Promi
 
 async function onButton(deps: RespondDeps, ctx: TurnContext, id: string, queue: Queue) {
   const facts = await deps.store.facts(ctx.conversationId);
+  if (id === "safety_got_it") {
+    if (!facts.locationAsked) await queue(copy.locationRequest(facts.category ?? "plumbing", { waterOff: false }));
+    return;
+  }
   if (id === "safety_done" || id === "safety_cant_find") {
     if (id === "safety_cant_find") await queue(copy.cantFindValve());
     await queue(copy.locationRequest(facts.category ?? "plumbing", { waterOff: id === "safety_done" }));
@@ -152,7 +156,7 @@ async function onMessage(deps: RespondDeps, ctx: TurnContext, turn: Extract<Turn
   if (turn.kind === "media") {
     const findValve = facts.category === null || facts.category === "plumbing";
     // Reading a video takes up to a minute, longer than WhatsApp's typing indicator lasts.
-    if (findValve && turn.mediaType !== "audio") await queue(copy.lookingAtMedia());
+    if (turn.mediaType !== "audio") await queue(copy.lookingAtMedia());
     const reading = await deps.readMedia({ conversationId: ctx.conversationId, mediaId: turn.mediaId, mediaType: turn.mediaType, caption: turn.caption, findValve });
     if (reading.transcript) await deps.store.saveTranscript(turn.mediaId, reading.transcript);
     ({ parts, markedFrameUrl, valveAdvice, shutOffWontHelp, analysis, serious } = reading);
@@ -161,6 +165,8 @@ async function onMessage(deps: RespondDeps, ctx: TurnContext, turn: Extract<Turn
   }
 
   const understanding = await understandOrFallback(deps, history, parts, facts);
+  // Sent before the checks below, so a reading rated urgent survives an unknown category.
+  if (analysis && understanding?.onTopic !== false) await queue(copy.mediaAnalysis(analysis));
   if (!understanding) {
     await queue(copy.categoryList());
     return;
@@ -191,15 +197,12 @@ async function onMessage(deps: RespondDeps, ctx: TurnContext, turn: Extract<Turn
     });
   }
 
-  if (analysis) await queue(copy.mediaAnalysis(analysis));
-
   const markedValve = category === "plumbing" && markedFrameUrl !== null;
   if (facts.state === "with_zukki" && facts.safety === "none" && (urgent || markedValve)) {
     if (markedValve) {
       await queue(copy.waterSafety({ markedFrameUrl, advice: valveAdvice, ifItGetsWorse: shutOffWontHelp }));
-      return;
-    }
-    if (category === "plumbing" && shutOffWontHelp) {
+      if (!shutOffWontHelp) return;
+    } else if (category === "plumbing" && shutOffWontHelp) {
       await queue(copy.shutOffWontHelp());
     } else if (category === "plumbing") {
       await queue(copy.waterSafety({ markedFrameUrl, advice: valveAdvice }));

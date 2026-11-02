@@ -382,7 +382,7 @@ describe("createMediaReader", () => {
     assert.match(warnings[0] ?? "", /Spark is down/);
   });
 
-  it("asks Spark nothing about a voice note or when no valve is needed", async () => {
+  it("asks Spark nothing about a voice note", async () => {
     let triaged = 0;
     const { pipeline } = await fakePipeline({
       triage: async () => {
@@ -392,15 +392,48 @@ describe("createMediaReader", () => {
     });
 
     await createMediaReader(pipeline)({ ...video, mediaType: "audio" });
-    const second = await fakePipeline({
-      triage: async () => {
-        triaged += 1;
-        return HELPS;
-      },
-    });
-    await createMediaReader(second.pipeline)({ ...video, findValve: false });
 
     assert.equal(triaged, 0);
+  });
+
+  it("reads a photo for any category and gives its message, without looking for a valve", async () => {
+    const { pipeline, calls } = await fakePipeline({
+      triage: async () => ({
+        ...HELPS,
+        problem: "Dented rear bumper",
+        customerMessage: "I can see a dent in your rear bumper. It looks safe to drive slowly.",
+        severity: "routine",
+        waterShutOff: "wont_help",
+        valveObject: null,
+      }),
+    });
+
+    const reading = await createMediaReader(pipeline)({ ...video, mediaType: "image", findValve: false });
+
+    assert.deepEqual(calls, []);
+    assert.equal(reading.analysis, "I can see a dent in your rear bumper. It looks safe to drive slowly.");
+    assert.equal(reading.valveAdvice, null);
+    assert.equal(reading.markedFrameUrl, null);
+  });
+
+  it("does not look for a valve outside water problems even if Spark names one", async () => {
+    const { pipeline, calls } = await fakePipeline();
+
+    const reading = await createMediaReader(pipeline)({ ...video, findValve: false });
+
+    assert.deepEqual(calls, ["frame"]);
+    assert.equal(reading.markedFrameUrl, null);
+    assert.equal(reading.shutOffWontHelp, false);
+    assert.doesNotMatch(notesOf(reading.parts), /shut-off valve/i);
+  });
+
+  it("does not tell a business outside plumbing that closing a valve will not help", async () => {
+    const { pipeline } = await fakePipeline({ triage: async () => ({ ...HELPS, waterShutOff: "wont_help", valveObject: null }) });
+
+    const reading = await createMediaReader(pipeline)({ ...video, findValve: false });
+
+    assert.equal(reading.shutOffWontHelp, false);
+    assert.doesNotMatch(notesOf(reading.parts), /water valve/);
   });
 
   it("skips SAM when no valve is needed and passes on the advice when none was found", async () => {
