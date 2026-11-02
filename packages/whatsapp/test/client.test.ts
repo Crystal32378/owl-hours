@@ -56,6 +56,27 @@ describe("createWhatsAppClient", () => {
     });
   });
 
+  it("talks to a configured Graph host and downloads media only from that origin", async () => {
+    const { impl, calls } = fakeFetch(({ url }) =>
+      url.endsWith("/messages") ? json({ messages: [{ id: "wamid.LOCAL" }] }) : new Response(new Uint8Array([7])),
+    );
+    const client = createWhatsAppClient({ accessToken: TOKEN, phoneNumberId: "1234567890", graphHost: "http://127.0.0.1:4010", fetch: impl });
+
+    assert.equal(await client.send(textMessage("15551234567", "Hello")), "wamid.LOCAL");
+    assert.equal(calls[0]?.url, "http://127.0.0.1:4010/v23.0/1234567890/messages");
+    assert.deepEqual([...(await client.download("http://127.0.0.1:4010/media/sink.mp4"))], [7]);
+    await assert.rejects(client.download("http://127.0.0.1:9999/media/sink.mp4"), /refusing/);
+    await assert.rejects(client.download("https://lookaside.fbsbx.com/x"), /refusing/);
+  });
+
+  it("refuses a loopback media URL when no Graph host is configured", async () => {
+    const { impl, calls } = fakeFetch(() => new Response(new Uint8Array([1])));
+    const client = createWhatsAppClient({ accessToken: TOKEN, phoneNumberId: "1234567890", fetch: impl });
+
+    await assert.rejects(client.download("http://127.0.0.1:4010/media/sink.mp4"), /refusing/);
+    assert.equal(calls.length, 0);
+  });
+
   it("looks up media then downloads it from Meta's host", async () => {
     const { impl, calls } = fakeFetch((call) =>
       call.url.includes("/v23.0/MEDIA1")

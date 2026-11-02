@@ -16,6 +16,8 @@ export type WhatsAppClientConfig = {
   accessToken: string;
   phoneNumberId: string;
   graphVersion?: string | undefined;
+  // A stand-in for the Cloud API on a local run. Media may then come from this origin only.
+  graphHost?: string | undefined;
   fetch?: typeof fetch | undefined;
 };
 
@@ -49,6 +51,7 @@ const errorBody = z.object({
 export function createWhatsAppClient(config: WhatsAppClientConfig) {
   const doFetch = config.fetch ?? fetch;
   const version = config.graphVersion ?? DEFAULT_GRAPH_VERSION;
+  const graphHost = config.graphHost ?? GRAPH_HOST;
   const auth = { Authorization: `Bearer ${config.accessToken}` };
 
   async function call(url: string, init: RequestInit): Promise<Response> {
@@ -63,7 +66,7 @@ export function createWhatsAppClient(config: WhatsAppClientConfig) {
     return res;
   }
 
-  const messagesUrl = `${GRAPH_HOST}/${version}/${encodeURIComponent(config.phoneNumberId)}/messages`;
+  const messagesUrl = `${graphHost}/${version}/${encodeURIComponent(config.phoneNumberId)}/messages`;
   const postMessages = (body: Record<string, unknown>) =>
     call(messagesUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
 
@@ -82,16 +85,15 @@ export function createWhatsAppClient(config: WhatsAppClientConfig) {
 
     // The download URL is short-lived and needs the same token.
     async getMedia(mediaId: string): Promise<MediaInfo> {
-      const res = await call(`${GRAPH_HOST}/${version}/${encodeURIComponent(mediaId)}`, { method: "GET" });
+      const res = await call(`${graphHost}/${version}/${encodeURIComponent(mediaId)}`, { method: "GET" });
       const body = mediaResponse.parse(await res.json());
       return { url: body.url, mimeType: body.mime_type, sizeBytes: body.file_size ?? null };
     },
 
     async download(url: string): Promise<Uint8Array> {
-      // Only ever send the token to Meta's own hosts.
-      const host = new URL(url).hostname;
-      if (!META_MEDIA_HOSTS.some((suffix) => host === suffix.slice(1) || host.endsWith(suffix))) {
-        throw new Error(`refusing to download media from ${host}`);
+      // Only ever send the token to Meta's own hosts, or to the configured stand-in.
+      if (!isAllowedMediaUrl(url, config.graphHost)) {
+        throw new Error(`refusing to download media from ${new URL(url).hostname}`);
       }
       const res = await call(url, { method: "GET" });
       const declared = Number(res.headers.get("content-length") ?? "0");
@@ -108,6 +110,12 @@ export function createWhatsAppClient(config: WhatsAppClientConfig) {
 }
 
 export type WhatsAppClient = ReturnType<typeof createWhatsAppClient>;
+
+function isAllowedMediaUrl(url: string, standIn: string | undefined): boolean {
+  const { hostname, origin } = new URL(url);
+  if (standIn) return origin === new URL(standIn).origin;
+  return META_MEDIA_HOSTS.some((suffix) => hostname === suffix.slice(1) || hostname.endsWith(suffix));
+}
 
 async function toError(res: Response): Promise<WhatsAppApiError> {
   const parsed = errorBody.safeParse(await res.json().catch(() => null));

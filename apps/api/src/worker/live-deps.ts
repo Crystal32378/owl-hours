@@ -10,7 +10,7 @@ import { locateValves, triageMedia } from "../ai/media-triage.ts";
 import { markValve } from "../ai/valve-step.ts";
 import { runAgent } from "../agent/run-agent.ts";
 import { createAgentTools } from "../agent/tools.ts";
-import { loadConfig, type ApiConfig } from "../config.ts";
+import { loadConfig, metaClientOptions, type ApiConfig } from "../config.ts";
 import { createServiceClient } from "../db/client.ts";
 import { createSupabaseRepository } from "../db/repository.ts";
 import { drawMarkup, imageSize } from "../media/draw-markup.ts";
@@ -26,7 +26,7 @@ function withSuffix(path: string, suffix: string): string {
 }
 
 export function createLiveDeps(config: ApiConfig = loadConfig()): PipelineDeps {
-  const client = createMetaClient({ apiKey: config.metaModelApiKey });
+  const client = createMetaClient(metaClientOptions(config));
   const supabase = createServiceClient(config);
   const repo = createSupabaseRepository(supabase);
   const mediaStore = createMediaStore(supabase);
