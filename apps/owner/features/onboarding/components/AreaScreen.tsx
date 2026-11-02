@@ -63,6 +63,7 @@ export default function AreaScreen(props: {
               center={props.mapCenter}
               radiusKm={radius}
               label={onboardingCopys.mapAlt}
+              className="onk-map"
               onMove={(point) => void props.onMoveLocation(point, radius)}
             />
             {props.mapCenter && <Text type="supporting">{onboardingCopys.mapDragHint}</Text>}

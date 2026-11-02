@@ -16,6 +16,7 @@ export const businessCopys = {
   extraFeesRow: "Extra fees",
   hoursRow: "Hours",
   serviceAreaRow: "Service area",
+  serviceAreaMapLabel: "Map of your service area",
   websiteRow: "Website",
   takingRequestsNow: "Taking requests now",
   urgentRequests: "Urgent requests",

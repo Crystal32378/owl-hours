@@ -16,10 +16,10 @@ import { Heading, Text } from '@astryxdesign/core/Text';
 import { IconButton } from '@astryxdesign/core/IconButton';
 import { List, ListItem } from '@astryxdesign/core/List';
 import { Settings as SettingsIcon } from 'lucide-react';
+import ServiceAreaMap from '../../../shared/map/ServiceAreaMap';
 import { Owl } from '../../../shared/mascot/Owl';
 import owlReview from '../../../shared/mascot/owl/review';
 import logoNorthside from '../../../assets/img/logoNorthside';
-import mapCity from '../../../assets/img/mapCity';
 import { businessCopys } from '../copys/businessCopys';
 import type { BusinessRowValues } from '../lib/businessRows';
 import { RowChevron } from './RowChevron';
@@ -78,10 +78,12 @@ export default function BusinessScreen(props: {
                 description={
                   <VStack gap={0}>
                     <Text type="supporting">{rows.serviceArea}</Text>
-                    <div className="zukki-map-strip" aria-hidden="true">
-                      <img src={mapCity} alt="" className="zukki-map-image" />
-                      <span className="zukki-map-radius" />
-                    </div>
+                    <ServiceAreaMap
+                      center={rows.serviceAreaMap.center}
+                      radiusKm={rows.serviceAreaMap.radiusKm}
+                      label={businessCopys.serviceAreaMapLabel}
+                      className="zukki-map-strip"
+                    />
                   </VStack>
                 }
               />

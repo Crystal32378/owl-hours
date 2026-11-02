@@ -32,9 +32,9 @@ describe("businessRows", () => {
   });
 
   it("shows the website alone when no imported-services count is known (live)", () => {
-    const rows = businessRows(structuredClone(business), { areaLabel: "Northside", importedServices: null });
+    const rows = businessRows(structuredClone(business), { areaLabel: "Northside", importedServices: null, hasLocation: false });
     assert.equal(rows.website, "northside-plumbing.example");
     const { website: _website, ...withoutWebsite } = structuredClone(business);
-    assert.equal(businessRows(withoutWebsite, { areaLabel: "Northside", importedServices: null }).website, "");
+    assert.equal(businessRows(withoutWebsite, { areaLabel: "Northside", importedServices: null, hasLocation: false }).website, "");
   });
 });
