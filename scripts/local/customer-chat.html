@@ -23,7 +23,7 @@ main{flex:1;overflow-y:auto;padding:16px}
 .empty{color:var(--muted);text-align:center;margin-top:32px}
 .message{max-width:85%;width:fit-content;background:var(--bubble);border-radius:12px;padding:10px 12px;margin:8px 0;white-space:pre-wrap;overflow-wrap:anywhere}
 .message.customer{background:var(--mine);margin-left:auto}
-.message img,.message video{display:block;max-width:100%;border-radius:8px;margin-bottom:8px}
+.message img,.message video{display:block;max-width:100%;max-height:420px;border-radius:8px;margin-bottom:8px}
 .footer{color:var(--muted);font-size:16px;margin-top:6px}
 .actions{display:flex;flex-direction:column;gap:6px;margin-top:10px}
 .actions button{color:var(--accent);font-weight:600}
@@ -105,6 +105,14 @@ function showConversation(conversation) {
     return;
   }
   main.replaceChildren(...conversation.map(({ from, message }) => (from === 'customer' ? customerBubble(message) : zukkiBubble(message))));
+  scrollToLatest();
+  // Photos and videos grow the bubble when they load, after the first scroll.
+  main.querySelectorAll('img').forEach((image) => image.addEventListener('load', scrollToLatest, { once: true }));
+  main.querySelectorAll('video').forEach((video) => video.addEventListener('loadedmetadata', scrollToLatest, { once: true }));
+}
+
+function scrollToLatest() {
+  const main = el('messages');
   main.scrollTop = main.scrollHeight;
 }
 
