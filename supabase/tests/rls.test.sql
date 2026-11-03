@@ -93,7 +93,7 @@ begin;
 set local role authenticated;
 set local request.jwt.claims to :'stranger';
 do $$ begin
-  assert (select count(*) from public.tenants) = 3, 'directory should list 3 businesses';
+  assert (select count(*) from public.tenants) = 4, 'directory should list 4 businesses';
   assert (select count(*) from public.price_rules) > 0, 'prices are public directory data';
 end $$;
 rollback;
