@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Customer chat</title>
+<style>
+:root{color-scheme:light dark;--bg:#f4f4f2;--bubble:#fff;--mine:#dbe9fb;--text:#1a1a1a;--muted:#5f5f5a;--line:#d9d9d4;--accent:#0b63ce;--danger:#a4231b}
+@media(prefers-color-scheme:dark){:root{--bg:#161615;--bubble:#262624;--mine:#1d3a5f;--text:#f1f1ee;--muted:#a9a9a3;--line:#3a3a37;--accent:#7db5f5;--danger:#ff9d94}}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.45 system-ui,sans-serif}
+button,input,select{font:inherit;color:inherit}
+button,select{min-height:48px;border-radius:12px;border:1px solid var(--line);background:var(--bubble);padding:0 16px;cursor:pointer}
+button:focus-visible,select:focus-visible,input:focus-visible{outline:3px solid var(--accent);outline-offset:1px}
+.app{display:flex;flex-direction:column;height:100%;max-width:640px;margin:0 auto}
+header{padding:12px 16px;border-bottom:1px solid var(--line)}
+h1{font-size:20px;margin:0}
+.note{color:var(--muted);margin:2px 0 10px}
+.who{display:flex;gap:8px}
+.who select{flex:1;min-width:0}
+main{flex:1;overflow-y:auto;padding:16px}
+.empty{color:var(--muted);text-align:center;margin-top:32px}
+.message{max-width:85%;width:fit-content;background:var(--bubble);border-radius:12px;padding:10px 12px;margin:8px 0;white-space:pre-wrap;overflow-wrap:anywhere}
+.message.customer{background:var(--mine);margin-left:auto}
+.message img,.message video{display:block;max-width:100%;border-radius:8px;margin-bottom:8px}
+.footer{color:var(--muted);font-size:16px;margin-top:6px}
+.actions{display:flex;flex-direction:column;gap:6px;margin-top:10px}
+.actions button{color:var(--accent);font-weight:600}
+.error{color:var(--danger);padding:0 16px 8px;margin:0}
+form{display:flex;gap:8px;padding:12px 16px;border-top:1px solid var(--line)}
+form input{flex:1;min-width:0;min-height:48px;border-radius:12px;border:1px solid var(--line);background:var(--bubble);padding:0 14px}
+form .send{background:var(--accent);border-color:var(--accent);color:var(--bg);font-weight:600}
+dialog{border:1px solid var(--line);border-radius:12px;background:var(--bubble);color:var(--text);width:min(92vw,420px);padding:16px}
+dialog::backdrop{background:rgb(0 0 0 / .5)}
+dialog h2{font-size:18px;margin:0 0 12px}
+.choices{display:flex;flex-direction:column;gap:8px}
+.choices button{text-align:left;padding:10px 14px}
+.choices small{display:block;color:var(--muted);font-size:16px}
+.section{color:var(--muted);margin:8px 0 0}
+.close{width:100%;margin-top:12px}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>Customer chat</h1>
+    <p class="note">Local simulator, not WhatsApp. Nothing reaches a real phone.</p>
+    <div class="who">
+      <select id="customer" aria-label="Customer"></select>
+      <button id="new-customer" type="button">New customer</button>
+    </div>
+  </header>
+  <main id="messages" aria-live="polite"></main>
+  <p id="error" class="error" role="alert" hidden></p>
+  <form id="composer">
+    <button id="attach" type="button" aria-label="Send a photo or video">Attach</button>
+    <input id="text" aria-label="Message" placeholder="Write as the customer" autocomplete="off">
+    <button class="send" type="submit">Send</button>
+  </form>
+</div>
+<dialog id="sheet"><h2 id="sheet-title"></h2><div id="sheet-choices" class="choices"></div><button class="close" type="button" id="sheet-close">Cancel</button></dialog>
+<input id="file" type="file" accept=".mp4,.jpg,.jpeg,.png,.ogg" hidden>
+<script>
+const POLL_MS = 1500;
+// Near Northside in the Cancun seed, and in Murphy's service area in Taipei.
+const LOCATIONS = [
+  { title: 'Av. Tulum, Cancún', description: 'Near Northside Plumbing', args: ['21.1619', '-86.8515', 'Av. Tulum, Cancún'] },
+  { title: 'Xinyi District, Taipei', description: 'Near Murphy Plumbing', args: ['25.0340', '121.5640', 'Xinyi District, Taipei'] },
+];
+const STORED_CUSTOMER = 'customer-chat.customer';
+const el = (id) => document.getElementById(id);
+let waId = readStoredCustomer() ?? newCustomerId();
+let shownCount = -1;
+
+el('composer').addEventListener('submit', sendTypedMessage);
+el('new-customer').addEventListener('click', () => selectCustomer(newCustomerId()));
+el('customer').addEventListener('change', (event) => selectCustomer(event.target.value));
+el('attach').addEventListener('click', openAttachSheet);
+el('file').addEventListener('change', uploadChosenFile);
+el('sheet-close').addEventListener('click', () => el('sheet').close());
+refresh();
+setInterval(refresh, POLL_MS);
+
+async function refresh() {
+  try {
+    const [conversation, customers] = await Promise.all([getJson(`/customers/${waId}/conversation`), getJson('/customers')]);
+    showCustomers(customers);
+    if (conversation.length !== shownCount) showConversation(conversation);
+  } catch (error) {
+    showError(`The simulator stopped answering: ${error.message}`);
+  }
+}
+
+function showCustomers(customers) {
+  const known = [...new Set([waId, ...customers])];
+  el('customer').replaceChildren(...known.map((id) => new Option(`Customer ${id}`, id, false, id === waId)));
+}
+
+function showConversation(conversation) {
+  shownCount = conversation.length;
+  const main = el('messages');
+  if (!conversation.length) {
+    main.replaceChildren(textElement('p', 'Say hello to start, as a customer would.', 'empty'));
+    return;
+  }
+  main.replaceChildren(...conversation.map(({ from, message }) => (from === 'customer' ? customerBubble(message) : zukkiBubble(message))));
+  main.scrollTop = main.scrollHeight;
+}
+
+function customerBubble({ kind, args }) {
+  const bubble = textElement('div', '', 'message customer');
+  if (kind === 'image' || kind === 'video') appendCustomerMedia(bubble, kind, args);
+  else bubble.append(CUSTOMER_TEXT[kind](args));
+  return bubble;
+}
+
+const CUSTOMER_TEXT = {
+  text: ([body]) => body,
+  button: ([, title]) => title,
+  list: ([, title]) => title,
+  location: ([, , address]) => `Shared location: ${address}`,
+};
+
+function appendCustomerMedia(bubble, kind, [id, caption]) {
+  const media = document.createElement(kind === 'image' ? 'img' : 'video');
+  media.src = `/media/${encodeURIComponent(id)}`;
+  if (kind === 'image') media.alt = 'Photo the customer sent';
+  else media.controls = true;
+  bubble.append(media, caption ?? '');
+}
+
+function zukkiBubble(message) {
+  const interactive = message.interactive;
+  const bubble = textElement('div', '', 'message');
+  if (interactive?.header?.image?.link) appendHeaderImage(bubble, interactive.header.image.link);
+  if (interactive?.header?.text) bubble.append(withBold(`*${interactive.header.text}*\n`));
+  bubble.append(withBold(message.text?.body ?? interactive?.body?.text ?? ''));
+  if (interactive?.footer?.text) bubble.append(textElement('div', interactive.footer.text, 'footer'));
+  if (interactive) bubble.append(actionsOf(interactive));
+  return bubble;
+}
+
+function appendHeaderImage(bubble, link) {
+  const image = document.createElement('img');
+  image.src = link;
+  image.alt = 'Photo with the shut-off valve marked';
+  bubble.append(image);
+}
+
+function actionsOf({ type, action }) {
+  const actions = textElement('div', '', 'actions');
+  if (type === 'button') actions.append(...action.buttons.map(({ reply }) => button(reply.title, () => send('button', [reply.id, reply.title]))));
+  if (type === 'list') actions.append(button(action.button, () => openListSheet(action)));
+  if (type === 'location_request_message') actions.append(button('Send location', openLocationSheet));
+  return actions;
+}
+
+// WhatsApp's *bold* markup, the only one Zukki's messages use.
+function withBold(text) {
+  const parts = document.createDocumentFragment();
+  text.split(/(\*[^*\n]+\*)/).forEach((part) => {
+    parts.append(/^\*[^*\n]+\*$/.test(part) ? textElement('strong', part.slice(1, -1)) : part);
+  });
+  return parts;
+}
+
+function openListSheet({ button: title, sections }) {
+  openSheet(title, sections.flatMap((section) => [
+    textElement('p', section.title ?? '', 'section'),
+    ...section.rows.map((row) => choice(row.title, row.description, () => send('list', [row.id, row.title]))),
+  ]));
+}
+
+function openLocationSheet() {
+  openSheet('Send location', LOCATIONS.map(({ title, description, args }) => choice(title, description, () => send('location', args))));
+}
+
+async function openAttachSheet() {
+  const samples = await getJson('/samples');
+  openSheet('Send a photo or video', [
+    ...samples.map(({ id, kind, label, caption }) => choice(label, caption, () => send(kind, caption ? [id, caption] : [id]))),
+    choice('Choose your own file', 'Up to 16 MB', () => el('file').click()),
+  ]);
+}
+
+function openSheet(title, choices) {
+  el('sheet-title').textContent = title;
+  el('sheet-choices').replaceChildren(...choices);
+  el('sheet').showModal();
+}
+
+function choice(title, description, onChoose) {
+  const option = button(title, () => { el('sheet').close(); onChoose(); });
+  if (description) option.append(textElement('small', description));
+  return option;
+}
+
+async function sendTypedMessage(event) {
+  event.preventDefault();
+  const body = el('text').value.trim();
+  if (!body) return;
+  el('text').value = '';
+  await send('text', [body]);
+}
+
+async function uploadChosenFile() {
+  const [file] = el('file').files;
+  el('file').value = '';
+  if (!file) return;
+  const response = await fetch(`/uploads?name=${encodeURIComponent(file.name)}`, { method: 'POST', body: file });
+  const result = await response.json();
+  if (!response.ok) return showError(result.error);
+  await send(result.kind, [result.id]);
+}
+
+async function send(kind, args) {
+  showError('');
+  const response = await fetch(`/customers/${waId}/messages`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ kind, args }),
+  });
+  if (!response.ok) showError((await response.json()).error);
+  await refresh();
+}
+
+function selectCustomer(id) {
+  waId = id;
+  shownCount = -1;
+  storeCustomer(id);
+  showError('');
+  refresh();
+}
+
+function newCustomerId() {
+  const id = `5215550${String(Math.floor(Math.random() * 1e6)).padStart(6, '0')}`;
+  storeCustomer(id);
+  return id;
+}
+
+function readStoredCustomer() {
+  try { return localStorage.getItem(STORED_CUSTOMER); } catch { return null; }
+}
+
+function storeCustomer(id) {
+  try { localStorage.setItem(STORED_CUSTOMER, id); } catch { /* The chat still works, it just forgets the customer on reload. */ }
+}
+
+function showError(text) {
+  el('error').textContent = text;
+  el('error').hidden = !text;
+}
+
+async function getJson(path) {
+  const response = await fetch(path);
+  if (!response.ok) throw new Error(`${path} answered ${response.status}`);
+  return response.json();
+}
+
+function button(label, onClick) {
+  const element = textElement('button', label);
+  element.type = 'button';
+  element.addEventListener('click', onClick);
+  return element;
+}
+
+function textElement(tag, text, className) {
+  const element = document.createElement(tag);
+  element.textContent = text;
+  if (className) element.className = className;
+  return element;
+}
+</script>
+</body>
+</html>

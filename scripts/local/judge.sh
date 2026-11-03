@@ -45,6 +45,7 @@ export WHATSAPP_VERIFY_TOKEN="fake-$(openssl rand -hex 16)"
 export META_APP_SECRET="fake-$(openssl rand -hex 16)"
 # Exported, so they win over anything this shell already has set.
 export WHATSAPP_GRAPH_HOST="http://127.0.0.1:4010"
+export FAKE_WHATSAPP_UPLOAD_DIR="$run_dir/uploads"
 export SUPABASE_URL="$API_URL" SUPABASE_ANON_KEY="$ANON_KEY" SUPABASE_SERVICE_ROLE_KEY="$SERVICE_ROLE_KEY"
 export ZUKKI_SERVER_KEY="$(openssl rand -hex 32)"
 export OWNER_APP_ORIGINS="http://localhost:8081" OWNER_PUBLIC_ORIGIN="http://localhost:8081" PORT=3000
@@ -90,7 +91,7 @@ cat <<INFO
 Everything is running. Models: $models_note
 API log: $run_dir/api.log (removed when this stops)
 
-  Customer's messages   http://127.0.0.1:4010
+  Customer chat         http://127.0.0.1:4010   (a simulator, not WhatsApp: write and tap as the customer)
   Owner app             http://localhost:8081
     Sign in with mario@northside.example; the code arrives in $MAILPIT_URL
     The request has 5 minutes to be accepted, then Zukki offers it to the next business.

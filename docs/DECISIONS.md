@@ -587,3 +587,11 @@ it with a new one.
 - **Tokens stay safe:** `WHATSAPP_GRAPH_HOST` and `META_MODEL_BASE_URL` accept loopback URLs only, and production is unchanged when they are unset.
 - **Limits:** recordings cover the sample video and the demo script. With no key, a message the owner types in the chat went out as written; polishing with Zukki's version was not tried.
 
+
+## D40: A customer chat on the fake WhatsApp
+
+- **Decision:** the page at `http://127.0.0.1:4010` lets a person play the customer: type, tap buttons and lists, attach media and share a location. Each message goes to the API as the signed webhook WhatsApp would send (`scripts/local/customer-webhook.mjs`, shared with `scripts/e2e/wa-customer.mjs`).
+- **Why:** hosted model calls fail, and the owner app and customer flow still have to be shown working end to end. The orchestrator, database and owner app are the real ones; only the phone is replaced.
+- **It is not WhatsApp:** the page says so and does not copy WhatsApp's look. It is local only, like the rest of the fake.
+- **Replay stays honest:** the sample video keeps its recorded caption and the customer keeps the recorded name, because a replay matches the request. Other text and media reach the models with a key, and get no reading without one.
+- **Murphy Plumbing (Demo):** a fictional Taipei tenant in the seed, with its listed prices. The night window and the map point are assumptions, and the seed has no table for its services list. Ana's $130-160 is a discount, so Murphy's rules would suggest $140-170.

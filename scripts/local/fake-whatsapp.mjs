@@ -1,52 +1,36 @@
 #!/usr/bin/env node
 // Stands in for the WhatsApp Cloud API on a local run, so nothing reaches a real phone.
-// Point the API at it with WHATSAPP_GRAPH_HOST. It keeps what Zukki sends (GET /sent) and serves
-// customers' media from a folder: the media id is the file name.
-// env: FAKE_WHATSAPP_PORT (default 4010), FAKE_WHATSAPP_MEDIA_DIR (default scripts/e2e/media)
+// Point the API at it with WHATSAPP_GRAPH_HOST. It keeps what Zukki sends (GET /sent), serves customers'
+// media from a folder (the media id is the file name), and serves a chat page where a person plays the
+// customer: each message reaches the API as the same signed webhook WhatsApp would send.
+// env: FAKE_WHATSAPP_PORT (default 4010), FAKE_WHATSAPP_MEDIA_DIR (default scripts/e2e/media),
+//      FAKE_WHATSAPP_UPLOAD_DIR (default a temp folder), FAKE_WHATSAPP_API_URL (default http://localhost:3000),
+//      META_APP_SECRET and WHATSAPP_PHONE_NUMBER_ID (must match the API's)
 import { randomUUID } from 'node:crypto';
-import { readFile, stat } from 'node:fs/promises';
+import { mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
+import { tmpdir } from 'node:os';
 import { basename, extname, join } from 'node:path';
+import { deliverCustomerMessage, isCustomerMessageKind } from './customer-webhook.mjs';
 
 const PORT = Number(process.env.FAKE_WHATSAPP_PORT ?? 4010);
 const MEDIA_DIR = process.env.FAKE_WHATSAPP_MEDIA_DIR ?? join(import.meta.dirname, '..', 'e2e', 'media');
-const MIME_TYPES = { '.mp4': 'video/mp4', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.ogg': 'audio/ogg' };
+const UPLOAD_DIR = process.env.FAKE_WHATSAPP_UPLOAD_DIR ?? join(tmpdir(), 'zukki-fake-whatsapp-uploads');
+const API_URL = process.env.FAKE_WHATSAPP_API_URL ?? 'http://localhost:3000';
+const CHAT_PAGE = join(import.meta.dirname, 'customer-chat.html');
+const MIME_TYPES = { '.mp4': 'video/mp4', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.ogg': 'audio/ogg' };
+const MEDIA_KINDS = { 'video/mp4': 'video', 'image/jpeg': 'image', 'image/png': 'image', 'audio/ogg': 'audio' };
+// WhatsApp caps video at 16 MB.
+const MAX_UPLOAD_BYTES = 16 * 1024 * 1024;
+const WA_ID = /^\d{6,15}$/;
+// The recorded model answers were made with this caption and this name, and a replay must match them.
+const RECORDED_CAPTIONS = { 'under-sink-leak.mp4': 'Se está saliendo el agua y ya está llegando al piso' };
+const RECORDED_CUSTOMER_NAME = 'Carlos';
 const origin = `http://127.0.0.1:${PORT}`;
 const sent = [];
-// What the customer's phone would show. Read only: the customer's side is driven by demo-customer.mjs.
-const VIEWER = `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Customer messages</title>
-<style>
-:root{color-scheme:light dark;--bg:#f4f4f2;--bubble:#fff;--text:#1a1a1a;--muted:#5f5f5a}
-@media(prefers-color-scheme:dark){:root{--bg:#161615;--bubble:#262624;--text:#f1f1ee;--muted:#a9a9a3}}
-body{margin:0 auto;max-width:560px;padding:16px;background:var(--bg);color:var(--text);font:16px/1.45 system-ui,sans-serif}
-h1{font-size:20px}h2{font-size:16px;margin:24px 0 8px;color:var(--muted)}
-p.note{color:var(--muted)}
-.m{background:var(--bubble);border-radius:12px;padding:10px 12px;margin:8px 0;white-space:pre-wrap;overflow-wrap:anywhere}
-.m img{display:block;max-width:100%;border-radius:8px;margin-bottom:8px}
-.b{display:block;color:var(--muted);margin-top:6px}
-</style>
-<h1>What Zukki sent the customer</h1>
-<p class="note">Local stand-in for WhatsApp. Nothing here reaches a real phone.</p>
-<main id="m"></main>
-<script>
-const main=document.getElementById('m');
-function bubble(message){
-  const el=document.createElement('div');el.className='m';
-  const image=message.interactive?.header?.image?.link;
-  if(image){const img=document.createElement('img');img.src=image;img.alt='Photo with the shut-off valve marked';el.append(img)}
-  el.append(message.text?.body??message.interactive?.body?.text??'');
-  for(const button of message.interactive?.action?.buttons??[]){const b=document.createElement('span');b.className='b';b.textContent=button.reply.title;el.append(b)}
-  return el;
-}
-async function refresh(){
-  const messages=await (await fetch('/sent')).json();
-  const byCustomer=Map.groupBy(messages,(message)=>message.to);
-  main.replaceChildren(...[...byCustomer].flatMap(([to,list])=>{const h=document.createElement('h2');h.textContent='Customer '+to;return [h,...list.map(bubble)]}));
-}
-refresh();setInterval(refresh,3000);
-</script>`;
+const timeline = [];
 
+await mkdir(UPLOAD_DIR, { recursive: true });
 createServer((request, response) => {
   route(request, response).catch((error) => reply(response, 500, { error: { message: error.message } }));
 }).listen(PORT, '127.0.0.1', () => console.log(`Fake WhatsApp on ${origin}, media from ${MEDIA_DIR}`));
@@ -54,41 +38,115 @@ createServer((request, response) => {
 async function route(request, response) {
   const { pathname, searchParams } = new URL(request.url, origin);
   const [first, second, third] = pathname.split('/').slice(1);
-  if (request.method === 'GET' && !first) return sendViewer(response);
-  if (request.method === 'GET' && first === 'sent') return reply(response, 200, sentTo(searchParams.get('to')));
-  if (request.method === 'GET' && first === 'media') return sendMediaFile(response, second);
+  if (request.method === 'GET') return routeRead(response, { first, second, third, pathname, searchParams });
+  if (request.method === 'POST' && first === 'customers' && third === 'messages') return receiveFromChat(request, response, decodeURIComponent(second));
+  if (request.method === 'POST' && first === 'uploads') return receiveUpload(request, response, searchParams.get('name') ?? '');
   if (request.method === 'POST' && third === 'messages') return reply(response, 200, await keepMessage(request));
-  if (request.method === 'GET' && second) return reply(response, 200, await mediaInfo(second));
-  return reply(response, 404, { error: { message: `no route for ${request.method} ${pathname}` } });
+  return replyNoRoute(response, request.method, pathname);
 }
 
-function sendViewer(response) {
+function routeRead(response, { first, second, third, pathname, searchParams }) {
+  if (!first) return sendChatPage(response);
+  if (first === 'sent') return reply(response, 200, sentTo(searchParams.get('to')));
+  if (first === 'samples') return sendSamples(response);
+  if (first === 'media') return sendMediaFile(response, second);
+  if (first === 'customers' && !second) return reply(response, 200, customers());
+  if (first === 'customers' && third === 'conversation') return reply(response, 200, conversationOf(decodeURIComponent(second)));
+  if (second) return replyMediaInfo(response, second);
+  return replyNoRoute(response, 'GET', pathname);
+}
+
+async function sendChatPage(response) {
   response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
-  response.end(VIEWER);
+  response.end(await readFile(CHAT_PAGE));
 }
 
 function sentTo(recipient) {
   return recipient ? sent.filter((message) => message.to === recipient) : sent;
 }
 
+function customers() {
+  return [...new Set(timeline.map(({ waId }) => waId))];
+}
+
+function conversationOf(waId) {
+  return timeline.filter((entry) => entry.waId === waId).map(({ from, message }) => ({ from, message }));
+}
+
 async function keepMessage(request) {
   const body = JSON.parse(await readBody(request));
   const id = `wamid.fake-${randomUUID()}`;
-  if (body.to) sent.push({ id, ...body });
+  if (body.to) {
+    sent.push({ id, ...body });
+    timeline.push({ waId: body.to, from: 'zukki', message: { id, ...body } });
+  }
   return { messages: [{ id }] };
 }
 
-async function mediaInfo(mediaId) {
+async function receiveFromChat(request, response, waId) {
+  const { kind, args = [] } = JSON.parse(await readBody(request));
+  if (!WA_ID.test(waId)) return reply(response, 400, { error: 'the customer id must be a phone number' });
+  if (!isCustomerMessageKind(kind)) return reply(response, 400, { error: `unknown message kind ${kind}` });
+  timeline.push({ waId, from: 'customer', message: { kind, args } });
+  return reply(response, ...(await deliverToApi({ waId, kind, args })));
+}
+
+async function deliverToApi({ waId, kind, args }) {
+  try {
+    const delivered = await deliverCustomerMessage({
+      apiUrl: API_URL,
+      secret: process.env.META_APP_SECRET,
+      phoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID,
+      waId,
+      name: RECORDED_CUSTOMER_NAME,
+      kind,
+      args,
+    });
+    if (delivered.ok) return [200, { delivered: true }];
+    return [502, { error: `the Zukki API answered ${delivered.status}` }];
+  } catch (error) {
+    return [502, { error: `could not reach the Zukki API: ${error.message}` }];
+  }
+}
+
+async function receiveUpload(request, response, name) {
+  const mimeType = mimeTypeOf(name);
+  if (!MEDIA_KINDS[mimeType]) return reply(response, 415, { error: 'send a .mp4, .jpg, .png or .ogg file' });
+  const bytes = await readBodyBytes(request);
+  if (bytes.length > MAX_UPLOAD_BYTES) return reply(response, 413, { error: 'the file is over the 16 MB limit' });
+  const id = `upload-${randomUUID()}${extname(name).toLowerCase()}`;
+  await writeFile(join(UPLOAD_DIR, id), bytes);
+  return reply(response, 200, { id, kind: MEDIA_KINDS[mimeType] });
+}
+
+async function sendSamples(response) {
+  const names = (await readdir(MEDIA_DIR)).filter((name) => MEDIA_KINDS[mimeTypeOf(name)]).sort();
+  reply(response, 200, names.map(sampleOf));
+}
+
+function sampleOf(id) {
+  const kind = MEDIA_KINDS[mimeTypeOf(id)];
+  const topic = basename(id, extname(id)).replaceAll('-', ' ');
+  const caption = RECORDED_CAPTIONS[id];
+  return { id, kind, label: `Sample ${kind === 'image' ? 'photo' : kind}: ${topic}`, ...(caption ? { caption } : {}) };
+}
+
+async function replyMediaInfo(response, mediaId) {
   const name = basename(decodeURIComponent(mediaId));
-  const { size } = await stat(join(MEDIA_DIR, name));
-  return { url: `${origin}/media/${encodeURIComponent(name)}`, mime_type: mimeTypeOf(name), file_size: size };
+  const { size } = await stat(await mediaPath(name));
+  reply(response, 200, { url: `${origin}/media/${encodeURIComponent(name)}`, mime_type: mimeTypeOf(name), file_size: size });
 }
 
 async function sendMediaFile(response, mediaId) {
   const name = basename(decodeURIComponent(mediaId));
-  const bytes = await readFile(join(MEDIA_DIR, name));
+  const bytes = await readFile(await mediaPath(name));
   response.writeHead(200, { 'content-type': mimeTypeOf(name) });
   response.end(bytes);
+}
+
+async function mediaPath(name) {
+  const uploaded = join(UPLOAD_DIR, name);
+  return (await stat(uploaded).then(() => true, () => false)) ? uploaded : join(MEDIA_DIR, name);
 }
 
 function mimeTypeOf(name) {
@@ -96,9 +154,17 @@ function mimeTypeOf(name) {
 }
 
 async function readBody(request) {
+  return (await readBodyBytes(request)).toString();
+}
+
+async function readBodyBytes(request) {
   const chunks = [];
   for await (const chunk of request) chunks.push(chunk);
-  return Buffer.concat(chunks).toString();
+  return Buffer.concat(chunks);
+}
+
+function replyNoRoute(response, method, pathname) {
+  reply(response, 404, { error: { message: `no route for ${method} ${pathname}` } });
 }
 
 function reply(response, status, body) {
