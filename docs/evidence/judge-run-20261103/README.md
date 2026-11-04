@@ -33,3 +33,7 @@ The same demo, run twice with `scripts/local/judge.sh` from a fresh clone: once 
 - **What was removed.** Paths to temp folders, signed URLs and the key's fingerprint were replaced with placeholders, and setup noise such as migration lines was dropped from the logs.
 - **Not covered here.** Voice notes, Polish with Zukki, Test Zukki and posting to Facebook or Instagram were not run.
 - **WhatsApp was simulated in both runs.** See [what is real and what is simulated](../../../README.md#what-is-real-what-is-simulated).
+
+## The models step by step
+
+[`under-the-hood.mp4`](under-the-hood.mp4) is an earlier cut of the demo video. It shows real output recorded from a live run on Nov 2: the same answers the no-key demo replays. [`under-the-hood.gif`](under-the-hood.gif) is its silent preview for the README.
