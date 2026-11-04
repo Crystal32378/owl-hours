@@ -38,10 +38,12 @@ bash scripts/local/judge.sh
 
 When it finishes it prints where to look:
 
-- **Customer's messages**: `http://127.0.0.1:4010` shows what Zukki sent, including the photo with the shut-off valve marked.
+- **Customer chat**: `http://127.0.0.1:4010` is a simulator, not WhatsApp. Pick up where the demo customer stopped, or press **New customer** and play the customer yourself: write, tap Zukki's buttons, attach a photo or video and share a location. Each message reaches the API as the same signed webhook WhatsApp would send.
 - **Owner app**: `http://localhost:8081`. Type any name, `mario@northside.example`, and accept the terms; the code arrives in Mailpit at `http://127.0.0.1:54324`. Then tap through the setup, which shows Northside's saved business, and open **Requests**.
 
 A request waits 5 minutes, then Zukki offers it to the next business. Press Enter in the terminal to send another customer.
+
+**Script for the chat without a key.** The recordings cover this path: write `hola`, attach **Sample video: under sink leak**, tap **Done, no cables**, press **Send location** and choose Cancún, then **Connect me**. With `META_MODEL_API_KEY` set, the chat also reads other messages and your own video. To see Murphy Plumbing, the fictional Taipei business, choose the Taipei location; its owner signs in as `owner@murphy.example`. An existing local database gets Murphy after `npx supabase db reset`.
 
 **Models: recorded or live.** Without a key, the models are answers recorded from real runs of `muse-spark-1.3` and `sam-3.1` (`scripts/local/recordings/demo.json`), and the API log says `not calling Meta`. They cover only the sample video and the demo script: any other request gets an error, never an invented answer. To call the real models, run it with your own key:
 
