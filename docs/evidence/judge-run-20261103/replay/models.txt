@@ -1,0 +1,3 @@
+Meta models replayed from scripts/local/recordings/demo.json on http://127.0.0.1:4011/v1
+no recording for /chat/completions: refusing to invent an answer
+no recording for /asr/transcribe: refusing to invent an answer

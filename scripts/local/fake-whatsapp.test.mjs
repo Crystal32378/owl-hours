@@ -33,10 +33,11 @@ describe('fake WhatsApp customer chat', () => {
         FAKE_WHATSAPP_UPLOAD_DIR: uploadDir,
         META_APP_SECRET: SECRET,
         WHATSAPP_PHONE_NUMBER_ID: PHONE_NUMBER_ID,
+        META_MODEL_BASE_URL: '',
       },
       stdio: 'ignore',
     });
-    await waitUntilAnswering();
+    await waitUntilAnswering(FAKE_URL);
   });
 
   after(async () => {
@@ -55,6 +56,18 @@ describe('fake WhatsApp customer chat', () => {
     assert.equal(response.status, 200);
     assert.match(response.headers.get('content-type'), /text\/html/);
     assert.match(await response.text(), /not WhatsApp/);
+  });
+
+  it('says the answers come from the live models on a run that calls Meta', async () => {
+    const page = await (await fetch(FAKE_URL)).text();
+    assert.match(page, /Live models: this run calls Meta\./);
+    assert.doesNotMatch(page, /Recorded model answers/);
+  });
+
+  it('says the answers are recorded on a replay run', async () => {
+    const page = await chatPageOnReplayRun();
+    assert.match(page, /Recorded model answers: this run does not call Meta\./);
+    assert.doesNotMatch(page, /Live models/);
   });
 
   it('delivers a typed message to the API as a signed webhook from that customer', async () => {
@@ -208,9 +221,24 @@ describe('fake WhatsApp customer chat', () => {
   }
 });
 
-async function waitUntilAnswering() {
+async function chatPageOnReplayRun() {
+  const port = FAKE_PORT + 1;
+  const url = `http://127.0.0.1:${port}`;
+  const fake = spawn('node', [join(import.meta.dirname, 'fake-whatsapp.mjs')], {
+    env: { ...process.env, FAKE_WHATSAPP_PORT: String(port), META_MODEL_BASE_URL: 'http://127.0.0.1:4011/v1' },
+    stdio: 'ignore',
+  });
+  try {
+    await waitUntilAnswering(url);
+    return await (await fetch(url)).text();
+  } finally {
+    fake.kill();
+  }
+}
+
+async function waitUntilAnswering(url) {
   for (let attempt = 0; attempt < 50; attempt += 1) {
-    const answered = await fetch(`${FAKE_URL}/sent`).then((response) => response.ok, () => false);
+    const answered = await fetch(`${url}/sent`).then((response) => response.ok, () => false);
     if (answered) return;
     await new Promise((resolve) => setTimeout(resolve, 100));
   }

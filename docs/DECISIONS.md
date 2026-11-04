@@ -595,3 +595,9 @@ it with a new one.
 - **It is not WhatsApp:** the page says so and does not copy WhatsApp's look. It is local only, like the rest of the fake.
 - **Replay stays honest:** the sample video keeps its recorded caption and the customer keeps the recorded name, because a replay matches the request. Other text and media reach the models with a key, and get no reading without one.
 - **Murphy Plumbing (Demo):** a fictional Taipei tenant in the seed, with its listed prices. The night window and the map point are assumptions, and the seed has no table for its services list. Ana's $130-160 is a discount, so Murphy's rules would suggest $140-170.
+
+## D41: The customer chat says where the model answers come from
+
+- **Decision:** the chat page shows `Recorded model answers` or `Live models`. `fake-whatsapp.mjs` picks the text from `META_MODEL_BASE_URL`, the same signal behind the API's `not calling Meta` log.
+- **Why:** the organizers ask for replayed parts to be labeled clearly, and a terminal line does not appear in a screen recording.
+- **Limits:** the owner app has no such note. Its model text is labeled by the README and the chat page of the same run.

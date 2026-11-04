@@ -1,0 +1,20 @@
+Facebook and Instagram disabled (linking and posting return 503): Facebook and Instagram are not configured: META_APP_ID, API_PUBLIC_URL, OWNER_WEB_URL missing or invalid (see apps/api/.env.example)
+Meta models: not calling Meta, META_MODEL_BASE_URL is set
+Sending queued WhatsApp messages every 2000 ms
+Zukki answers customers and sends accepted, timeout and quote notices
+Zukki API listening on port 3000
+zukki: queued 1 notice(s)
+whatsapp: outbox sent 3, failed 0
+whatsapp: outbox sent 1, failed 0
+whatsapp: outbox sent 2, failed 0
+whatsapp: outbox sent 1, failed 0
+whatsapp: outbox sent 2, failed 0
+whatsapp: outbox sent 1, failed 0
+whatsapp: outbox sent 2, failed 0
+whatsapp: outbox sent 1, failed 0
+whatsapp: outbox sent 2, failed 0
+whatsapp: outbox sent 1, failed 0
+whatsapp: outbox sent 2, failed 0
+whatsapp: outbox sent 1, failed 0
+zukki: queued 2 notice(s)
+whatsapp: outbox sent 2, failed 0

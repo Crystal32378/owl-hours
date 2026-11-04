@@ -8,12 +8,67 @@ A person confirms every job.
 Full context: [docs/HANDOFF.md](docs/HANDOFF.md).
 How to run and demo it: [docs/USAGE.md](docs/USAGE.md).
 
-Try it with no accounts or keys (Docker, Node 24, pnpm and ffmpeg):
+## For judges
+
+Run the whole demo with no accounts or keys. You need Docker, Node 24, pnpm and ffmpeg.
 
 ```sh
 pnpm install
 bash scripts/local/judge.sh
 ```
+
+Then follow [the script for the chat and the owner app](docs/USAGE.md#3-run-it-with-no-accounts-judges-start-here). Without a key the model answers are **recorded**. To call the live models, add your own key:
+
+```sh
+META_MODEL_API_KEY=your-key bash scripts/local/judge.sh
+```
+
+### Meta models and where they are used
+
+Every model runs on Meta's hosted Model API (`https://api.meta.ai/v1`), called from `apps/api`. Nothing runs on the device or on open weights.
+
+| Model | Where it is used | In the no-key run |
+|---|---|---|
+| `muse-spark-1.3` | Reads the customer's photo or video and writes what it sees and a safety tip ([`media-triage.ts`](apps/api/src/ai/media-triage.ts)) | Recorded |
+| `muse-spark-1.3` | Finds where the valve is in a video frame ([`media-triage.ts`](apps/api/src/ai/media-triage.ts)) | Recorded |
+| `muse-spark-1.3` | Works out the need, category and urgency, and writes the owner's request card ([`understand.ts`](apps/api/src/orchestrator/understand.ts)) | Recorded |
+| `muse-spark-1.3` | Answers free questions with validated tool calls ([`run-agent.ts`](apps/api/src/agent/run-agent.ts)) | Needs a key |
+| `muse-spark-1.3` | Polish with Zukki ([`polish.ts`](apps/api/src/services/polish.ts)) and Test Zukki ([`test-zukki.ts`](apps/api/src/agent/test-zukki.ts)) in the owner app | Needs a key |
+| `sam-3.1` | Segments the valve on the customer's real frame ([`valve-step.ts`](apps/api/src/ai/valve-step.ts)) | Recorded |
+| `muse-voice-transcribe-1.0` | Transcribes voice notes ([`voice.ts`](packages/meta-models/src/voice.ts)) | Needs a key |
+| `muse-image-1.0` | Not used at run time. It made the picture behind the sample video | Not called |
+
+### Beyond a basic API call
+
+- **Two models work together.** Spark reasons about the scene and points at the valve, SAM segments it, and our code draws the ring, arrow and label on the customer's own frame. If SAM is unsure, the customer gets generic advice instead of a guess.
+- **Our code decides the next step.** Spark returns structured output, and the steps of the flow are fixed code.
+- **Model output is checked.** Tool arguments are validated with zod, and a polished message that changes a number is thrown away.
+- **People stay in control.** An owner confirms every job, the customer approves the visit, and the exact address is shared only after that.
+
+### What is real, what is simulated
+
+| Part | Status | Details |
+|---|---|---|
+| API, orchestrator, Postgres with row-level security, message outbox, owner web app | **Real** | The same code as production, running on your machine |
+| Valve ring on the photo | **Real** | Drawn by our code on each run, from SAM's box |
+| WhatsApp | **Simulated** | [`fake-whatsapp.mjs`](scripts/local/fake-whatsapp.mjs) stands in for the Cloud API and nothing reaches a phone. The chat page says so, and each message reaches the API as a signed webhook in WhatsApp's format |
+| Customer | **Simulated** | A script sends the first customer. After that, you play the customer |
+| Model answers without a key | **Replayed** | [`recordings/demo.json`](scripts/local/recordings/demo.json) holds answers recorded from real runs. The chat page, the terminal and the API log all say so |
+| Anything else without a key | **Refused** | Your own media, other text and voice notes get an error from the replay server, never an invented answer |
+| Businesses, prices and customers | **Fictional** | Seed data |
+| Sample leak video | **Generated** | Made from a `muse-image-1.0` picture, not a real home |
+| Sign-in email | **Local** | The code arrives in local Mailpit, not a real inbox |
+| Facebook and Instagram posting | **Off** | Returns 503 on this run |
+
+### Provenance
+
+| Evidence | Link |
+|---|---|
+| Screen recording with live models | [`both-sides.mp4`](docs/evidence/judge-run-20261103/live/both-sides.mp4) |
+| Logs, transcripts and screenshots of a live and a replayed run | [`docs/evidence/judge-run-20261103`](docs/evidence/judge-run-20261103/README.md) |
+| Recorded model answers | [`scripts/local/recordings/demo.json`](scripts/local/recordings/demo.json) |
+| How to record them again | [`scripts/local/replay-models.mjs`](scripts/local/replay-models.mjs) |
+| What the demo video is made of | [`docs/VIDEO-CREDITS.md`](docs/VIDEO-CREDITS.md) |
 
 UI handoff (current, Oct 27 decisions): [handoff-ui/HANDOFF-UI.md](handoff-ui/HANDOFF-UI.md) — WhatsApp payloads, Expo + Astryx owner app, demo path.
 
@@ -27,7 +82,7 @@ resources, and a proposed team plan (not yet agreed).
 - `apps/api` — Hono server (WhatsApp webhook, `/v1` owner and internal API, see [docs/API.md](docs/API.md)) + worker
 - `apps/owner` — Expo app for the owner/technician (Expo web for judges)
 - `packages/shared` — job state machine, zod schemas, types
-- `packages/meta-models` — Meta Model API clients (Spark, SAM, voice, image)
+- `packages/meta-models` — Meta Model API clients (Spark, SAM, voice)
 - `packages/whatsapp` — WhatsApp Cloud API sender
 - `handoff-ui` — UI handoff: customer WhatsApp messages, owner app (Expo + Astryx), demo screens
 - `supabase` — Postgres schema, row-level security, functions and seed ([docs/DATA-MODEL.md](docs/DATA-MODEL.md)); the `/v1` API reads and writes it
