@@ -68,6 +68,7 @@ Every model runs on Meta's hosted Model API (`https://api.meta.ai/v1`), called f
 | Logs, transcripts and screenshots of a live and a replayed run | [`docs/evidence/judge-run-20261103`](docs/evidence/judge-run-20261103/README.md) |
 | Recorded model answers | [`scripts/local/recordings/demo.json`](scripts/local/recordings/demo.json) |
 | How to record them again | [`scripts/local/replay-models.mjs`](scripts/local/replay-models.mjs) |
+| What the demo video is made of | [`docs/VIDEO-CREDITS.md`](docs/VIDEO-CREDITS.md) |
 
 UI handoff (current, Oct 27 decisions): [handoff-ui/HANDOFF-UI.md](handoff-ui/HANDOFF-UI.md) — WhatsApp payloads, Expo + Astryx owner app, demo path.
 
