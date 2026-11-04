@@ -5,7 +5,8 @@
 // customer: each message reaches the API as the same signed webhook WhatsApp would send.
 // env: FAKE_WHATSAPP_PORT (default 4010), FAKE_WHATSAPP_MEDIA_DIR (default scripts/e2e/media),
 //      FAKE_WHATSAPP_UPLOAD_DIR (default a temp folder), FAKE_WHATSAPP_API_URL (default http://localhost:3000),
-//      META_APP_SECRET and WHATSAPP_PHONE_NUMBER_ID (must match the API's)
+//      META_APP_SECRET and WHATSAPP_PHONE_NUMBER_ID (must match the API's),
+//      META_MODEL_BASE_URL (set on a replay run, so the page can say the answers are recorded)
 import { randomUUID } from 'node:crypto';
 import { mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
@@ -57,8 +58,16 @@ function routeRead(response, { first, second, third, pathname, searchParams }) {
 }
 
 async function sendChatPage(response) {
+  const page = await readFile(CHAT_PAGE, 'utf8');
   response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
-  response.end(await readFile(CHAT_PAGE));
+  response.end(page.replace('{{MODELS_NOTE}}', modelsNote()));
+}
+
+// The API calls Meta unless META_MODEL_BASE_URL points it at the recordings.
+function modelsNote() {
+  return process.env.META_MODEL_BASE_URL
+    ? 'Recorded model answers: this run does not call Meta.'
+    : 'Live models: this run calls Meta.';
 }
 
 function sentTo(recipient) {

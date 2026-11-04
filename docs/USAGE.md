@@ -45,7 +45,7 @@ A request waits 5 minutes, then Zukki offers it to the next business. Press Ente
 
 **Script for the chat without a key.** The recordings cover this path: write `hola`, attach **Sample video: under sink leak**, tap **Done, no cables**, press **Send location** and choose Cancún, then **Connect me**. With `META_MODEL_API_KEY` set, the chat also reads other messages and your own video. To see Murphy Plumbing, the fictional Taipei business, choose the Taipei location; its owner signs in as `owner@murphy.example`. An existing local database gets Murphy after `npx supabase db reset`.
 
-**Models: recorded or live.** Without a key, the models are answers recorded from real runs of `muse-spark-1.3` and `sam-3.1` (`scripts/local/recordings/demo.json`), and the API log says `not calling Meta`. They cover only the sample video and the demo script: any other request gets an error, never an invented answer. To call the real models, run it with your own key:
+**Models: recorded or live.** Without a key, the models are answers recorded from real runs of `muse-spark-1.3` and `sam-3.1` (`scripts/local/recordings/demo.json`). The customer chat says `Recorded model answers` and the API log says `not calling Meta`; with a key, the chat says `Live models`. They cover only the sample video and the demo script: any other request gets an error, never an invented answer. To call the real models, run it with your own key:
 
 ```sh
 META_MODEL_API_KEY=your-key bash scripts/local/judge.sh
