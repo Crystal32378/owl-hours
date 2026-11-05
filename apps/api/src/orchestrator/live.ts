@@ -18,7 +18,13 @@ export function createDirectory(db: SupabaseClient): Directory {
   return {
     matches: (conversationId, category) => whatsapp.findMatches(db, { conversationId, category }),
     connect: async (conversationId, businessId) => {
-      const offer = await whatsapp.connectBusiness(db, { conversationId, businessId });
+      const suggested = await suggestedQuoteOrNone(db, businessId);
+      const offer = await whatsapp.connectBusiness(db, {
+        conversationId,
+        businessId,
+        suggestedMin: suggested?.min,
+        suggestedMax: suggested?.max,
+      });
       return { expiresAt: offer.expiresAt };
     },
   };
@@ -36,7 +42,7 @@ export function createRespondDeps(input: {
     store: createConversationStore(input.db),
     directory: createDirectory(input.db),
     understand: (request) => understandNeed(input.chat, request),
-    readMedia: createMediaReader(pipeline),
+    readMedia: createMediaReader(pipeline, input.log),
     answer: async ({ conversationId, history, parts, note }) => {
       const run = await pipeline.runAgent(
         [
@@ -52,4 +58,14 @@ export function createRespondDeps(input: {
     now: () => new Date(),
     log: input.log,
   };
+}
+
+// The suggested range is optional: a failure to compute it must never stop the customer's connect.
+async function suggestedQuoteOrNone(db: SupabaseClient, businessId: string) {
+  try {
+    return await whatsapp.suggestedQuoteFor(db, businessId, new Date());
+  } catch (error) {
+    console.warn(`[api] suggested quote for ${businessId} failed, the offer stands:`, error);
+    return null;
+  }
 }

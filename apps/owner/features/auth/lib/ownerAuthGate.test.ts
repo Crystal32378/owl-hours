@@ -12,9 +12,17 @@ describe('ownerAuthRedirect', () => {
     assert.equal(ownerAuthRedirect({ ...live, pathname: '/chat/c1' }), '/onboarding/sign-up');
   });
 
-  it('S3 lets a signed-out owner through every onboarding step', () => {
-    for (const pathname of ['/onboarding/intro', '/onboarding/sign-up', '/onboarding/verify', '/onboarding/business']) {
+  it('S3 lets a signed-out owner through the steps that sign them in', () => {
+    for (const pathname of ['/onboarding/intro', '/onboarding/sign-up', '/onboarding/verify']) {
       assert.equal(ownerAuthRedirect({ ...live, pathname }), null, pathname);
+    }
+  });
+
+  // Regression (Crystal): a signed-out owner filled business, prices and area, then
+  // "Allow notifications" landed on /requests and bounced to sign-up, losing the setup.
+  it('sends a signed-out owner to sign-up before any setup step', () => {
+    for (const pathname of ['/onboarding/business', '/onboarding/prices', '/onboarding/area', '/onboarding/live']) {
+      assert.equal(ownerAuthRedirect({ ...live, pathname }), '/onboarding/sign-up', pathname);
     }
   });
 

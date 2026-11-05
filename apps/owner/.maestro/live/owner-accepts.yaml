@@ -1,0 +1,21 @@
+# Owner side on the live stack: the new request, accept, the chat, the quote.
+appId: host.exp.Exponent
+---
+- openLink: "exp://127.0.0.1:8081/--/requests"
+- tapOn: ".*Chats.*"
+- tapOn: ".*Requests.*"
+- extendedWaitUntil:
+    visible: "Waiting for you"
+    timeout: 60000
+- takeScreenshot: live-01-requests
+- tapOn: "Review request"
+- extendedWaitUntil:
+    visible: "Accept and chat"
+    timeout: 30000
+- takeScreenshot: live-02-request
+- tapOn: "Accept and chat"
+- runFlow: ../subflows/dismiss-logbox.yaml
+- extendedWaitUntil:
+    visible: "Polish with Zukki"
+    timeout: 30000
+- takeScreenshot: live-03-chat

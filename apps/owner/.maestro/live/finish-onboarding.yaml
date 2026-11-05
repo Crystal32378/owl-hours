@@ -1,0 +1,16 @@
+# The onboarding steps after sign-in still run on demo data; tap through them.
+appId: host.exp.Exponent
+---
+- repeat:
+    times: 6
+    while:
+      notVisible: "Waiting for you|No requests yet|You're not taking requests"
+    commands:
+      - scrollUntilVisible:
+          element: "Continue|Go live|Start taking requests|Done|Finish|Skip"
+          timeout: 10000
+          optional: true
+      - tapOn:
+          text: "Continue|Go live|Start taking requests|Done|Finish|Skip"
+          optional: true
+      - waitForAnimationToEnd

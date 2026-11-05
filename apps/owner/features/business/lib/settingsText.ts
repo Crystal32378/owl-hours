@@ -12,6 +12,11 @@ export function acceptWindowValueText(acceptWindow: { urgent: number; other: num
   return `${acceptWindow.urgent} / ${acceptWindow.other} ${settingsCopys.minuteUnit}`;
 }
 
+export function acceptWindowDetailText(acceptWindow: { urgent: number; other: number }): string {
+  const { urgentWindowWord, otherWindowWord, minuteUnit, afterWindowSentence } = settingsCopys;
+  return `${urgentWindowWord} ${acceptWindow.urgent} ${minuteUnit} · ${otherWindowWord} ${acceptWindow.other} ${minuteUnit}. ${afterWindowSentence}`;
+}
+
 export function linkedAccountsValueText(accounts: LinkedAccount[]): string {
   return `${connectedCount(accounts)} ${settingsCopys.connectedWord}`;
 }

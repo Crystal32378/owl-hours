@@ -1,0 +1,31 @@
+# On every push to main that touches the owner app or a shared package:
+# - publishes the web app to EAS Hosting production (https://zukki-owner.expo.app) with the
+#   EAS production environment's EXPO_PUBLIC_* values;
+# - sends the JavaScript changes as an EAS Update to the Android preview builds (channel
+#   preview), which download it on their next launch. Native changes still need a new build.
+# Docs: https://docs.expo.dev/eas/workflows/pre-packaged-jobs/
+name: Deploy owner app
+
+on:
+  push:
+    branches: ['main']
+    paths:
+      - apps/owner/**
+      - packages/**
+      - pnpm-lock.yaml
+
+jobs:
+  deploy_web:
+    name: Deploy web
+    type: deploy
+    environment: production
+    params:
+      prod: true
+
+  update_android:
+    name: Update Android preview builds
+    type: update
+    environment: preview
+    params:
+      channel: preview
+      platform: android

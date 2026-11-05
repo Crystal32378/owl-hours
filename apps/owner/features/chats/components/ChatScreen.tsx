@@ -3,7 +3,7 @@
 import '@astryxdesign/core/reset.css';
 import '@astryxdesign/core/astryx.css';
 import '@astryxdesign/theme-neutral/theme.css';
-import '@astryxdesign/theme-neutral/fonts.css';
+import '../../../shared/theme/figtreeStylesheet';
 import '../../../shared/theme/zukki-theme.css';
 
 import { useEffect, useRef, useState } from 'react';
@@ -37,6 +37,7 @@ import type { PolishChoice } from '../lib/ownerDelivery.ts';
 import type { QuoteCard } from '../lib/quoteCard.ts';
 import { chatsCopys } from '../copys/chatsCopys';
 import { arrivedOwnMessage } from '../lib/followLatest.ts';
+import { messageWithJobLink } from '../lib/jobLink.ts';
 import { SuggestionRow } from './SuggestionRow';
 
 export default function ChatScreen(props: {
@@ -51,6 +52,7 @@ export default function ChatScreen(props: {
   sendFailed: boolean;
   hasJob: boolean; // "View job and evidence" opens the conversation's job, so it shows only when there is one
   suggestedQuoteText: string | null; // "$130–160" for the SuggestionRow; null when Zukki suggests nothing
+  canSendQuote: boolean; // the job still takes a quote: without a suggestion, "Send a quote" opens the quote modal
   insets: { top: number; bottom: number };
   onSend: (text: string) => Promise<SendOutcome>;
   onSendChoice: (choice: PolishChoice) => Promise<void>;
@@ -61,6 +63,7 @@ export default function ChatScreen(props: {
   dom?: DOMProps;
 }) {
   const { insets } = props;
+  const jobLinkMessageId = messageWithJobLink(props.thread);
   return (
     <Theme theme={neutralTheme}>
       <div className="zukki-root" style={{ ...pageStyle, paddingTop: insets.top, paddingBottom: insets.bottom }}>
@@ -71,7 +74,7 @@ export default function ChatScreen(props: {
               <ChatSystemMessage>{chatsCopys.youAcceptedAt} {formatClockTime(props.acceptedAt)}</ChatSystemMessage>
             )}
             {props.thread.map((message) => (
-              <ThreadEntry key={message.id} message={message} onOpenJob={props.hasJob ? props.onOpenJob : null} />
+              <ThreadEntry key={message.id} message={message} onOpenJob={props.hasJob && message.id === jobLinkMessageId ? props.onOpenJob : null} />
             ))}
           </ChatMessageList>
           <FollowOwnMessages thread={props.thread} />
@@ -205,6 +208,7 @@ type FooterProps = Pick<
   | 'polishFailed'
   | 'sendFailed'
   | 'suggestedQuoteText'
+  | 'canSendQuote'
   | 'onSend'
   | 'onSendChoice'
   | 'onSetPolishEnabled'
@@ -218,12 +222,18 @@ function Footer(props: FooterProps) {
 
   return (
     <VStack gap={2} padding={3}>
-      {props.suggestedQuoteText && props.step !== 'comparing' && (
-        <SuggestionRow quoteText={props.suggestedQuoteText} onReview={props.onReviewQuote} />
-      )}
+      {props.step !== 'comparing' && <QuoteEntry {...props} />}
       <FooterBody {...props} draft={draft} onDraftChange={setDraft} />
     </VStack>
   );
+}
+
+// Zukki's suggestion when there is one; otherwise a plain way to the quote modal while the job takes a quote.
+function QuoteEntry(props: Pick<FooterProps, 'suggestedQuoteText' | 'canSendQuote' | 'onReviewQuote'>) {
+  if (props.suggestedQuoteText) return <SuggestionRow quoteText={props.suggestedQuoteText} onReview={props.onReviewQuote} />;
+  if (!props.canSendQuote) return null;
+
+  return <Button label={chatsCopys.sendAQuote} variant="ghost" size="lg" onClick={() => props.onReviewQuote()} />;
 }
 
 function FooterBody(props: FooterProps & DraftProps) {

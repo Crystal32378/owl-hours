@@ -105,7 +105,15 @@ const tenantRows = z.array(
 
 export async function getMe(s: OwnerSession) {
   const memberships = membershipRows.parse(
-    unwrap(await s.db.from("tenant_users").select("tenant_id, role, display_name").eq("user_id", s.userId)),
+    unwrap(
+      await s.db
+        .from("tenant_users")
+        .select("tenant_id, role, display_name")
+        .eq("user_id", s.userId)
+        // The business routes edit the first membership in this same order.
+        .order("created_at")
+        .order("tenant_id"),
+    ),
   );
   const ids = memberships.map((m) => m.tenant_id);
   const tenants =
@@ -134,11 +142,98 @@ export async function getMe(s: OwnerSession) {
   };
 }
 
+// Business ------------------------------------------------------------------
+
+// The database functions pick the caller's own business (the first one GET /me
+// lists) and only its owner may write it, so no route takes a business id.
+export type BusinessChanges = {
+  name?: string | undefined;
+  shortName?: string | undefined;
+  website?: string | undefined;
+  takingRequests?: boolean | undefined;
+  nightJobs?: boolean | undefined;
+};
+export type NewBusiness = { name: string; category: string; website?: string | undefined; ownerName?: string | undefined };
+export type PriceInput = { id?: string | undefined; label: string; amount: number };
+export type FeeInput = { id?: string | undefined; label: string; amount: number; atNight: boolean };
+export type HoursInput = { weekday: number; opens: string; closes: string };
+export type AreaInput = { lat: number; lng: number; radiusKm: number };
+
+export async function getBusiness(s: OwnerSession) {
+  return businessOrNotFound(unwrap(await s.db.rpc("owner_business")));
+}
+
+// Idempotent: a caller who already has a business gets it updated, never a second one.
+export async function createBusiness(s: OwnerSession, business: NewBusiness) {
+  const args = {
+    p_name: business.name,
+    p_category: business.category,
+    p_website: business.website,
+    p_owner_name: business.ownerName,
+  };
+  return businessOrNotFound(unwrap(await s.db.rpc("owner_create_business", withoutUndefined(args))));
+}
+
+export async function updateBusiness(s: OwnerSession, changes: BusinessChanges) {
+  const args = {
+    p_name: changes.name,
+    p_short_name: changes.shortName,
+    p_website: changes.website,
+    p_taking_requests: changes.takingRequests,
+    p_night_jobs: changes.nightJobs,
+  };
+  return businessOrNotFound(unwrap(await s.db.rpc("owner_update_business", withoutUndefined(args))));
+}
+
+export async function savePrices(s: OwnerSession, prices: PriceInput[]) {
+  return businessOrNotFound(unwrap(await s.db.rpc("owner_save_prices", { p_prices: prices })));
+}
+
+export async function saveFees(s: OwnerSession, fees: FeeInput[]) {
+  return businessOrNotFound(unwrap(await s.db.rpc("owner_save_fees", { p_fees: fees })));
+}
+
+export async function saveHours(s: OwnerSession, hours: HoursInput[]) {
+  return businessOrNotFound(unwrap(await s.db.rpc("owner_save_hours", { p_hours: hours })));
+}
+
+export async function saveArea(s: OwnerSession, area: AreaInput) {
+  return businessOrNotFound(
+    unwrap(await s.db.rpc("owner_save_area", { p_lat: area.lat, p_lng: area.lng, p_radius_km: area.radiusKm })),
+  );
+}
+
+function businessOrNotFound(row: unknown) {
+  const business = z.record(z.unknown()).nullable().parse(row);
+  if (!business) {
+    throw new HttpError(404, "not_found", "No business on this account.");
+  }
+  return business;
+}
+
+// An absent argument keeps the database default, which keeps the stored value.
+function withoutUndefined(args: Record<string, unknown>): Record<string, unknown> {
+  return Object.fromEntries(Object.entries(args).filter(([, value]) => value !== undefined));
+}
+
 // Requests (offers) ---------------------------------------------------------
 
 export async function listOffers(s: OwnerSession, status: string, limit = 50) {
   const rows = items.parse(unwrap(await s.db.rpc("owner_offers", { p_status: status, p_limit: limit })));
   return withMediaLinks(s.db, rows, "media");
+}
+
+// One request card; 404 when it does not exist or belongs to another business.
+export async function getOffer(s: OwnerSession, offerId: string) {
+  const row = z
+    .record(z.unknown())
+    .nullable()
+    .parse(unwrap(await s.db.rpc("owner_offer", { p_handoff_id: offerId })));
+  if (!row) {
+    throw new HttpError(404, "not_found", "Request not found.");
+  }
+  const [offer] = await withMediaLinks(s.db, [row], "media");
+  return offer;
 }
 
 export async function acceptOffer(s: OwnerSession, offerId: string) {
@@ -389,6 +484,11 @@ const CONTENT_DRAFT_FIELDS = [
   "deleted_at",
 ].join(", ");
 
+// A content_drafts row from a server-side function, as the owner app reads it.
+export function readContentDraft(row: unknown): StoryPackDraftDto {
+  return toContentDraft(contentDraftRow.parse(row));
+}
+
 function toContentDraft(row: ContentDraftRow, canHandoff = false): StoryPackDraftDto {
   return {
     id: row.id,
@@ -539,19 +639,32 @@ export async function updateContentDraft(
       platforms: input.platforms,
     }).filter(([, value]) => value !== undefined),
   );
-  const row = contentDraftRow.parse(
-    unwrap(
-      await s.db
-        .from("content_drafts")
-        .update(changes)
-        .eq("id", draftId)
-        .eq("source", "story_pack")
-        .eq("status", "draft")
-        .is("deleted_at", null)
-        .select(CONTENT_DRAFT_FIELDS)
-        .single(),
-    ),
+  // Compare and write in one database statement; never retry with a newer version.
+  const updated = unwrap(
+    await s.db
+      .from("content_drafts")
+      .update(changes)
+      .eq("id", draftId)
+      .eq("source", "story_pack")
+      .eq("status", "draft")
+      .is("deleted_at", null)
+      .eq("updated_at", input.expectedUpdatedAt)
+      .select(CONTENT_DRAFT_FIELDS)
+      .maybeSingle(),
   );
+  if (!updated) {
+    // This read only distinguishes unavailable rows from a version conflict.
+    const current = unwrap(
+      await s.db.from("content_drafts").select("id, deleted_at")
+        .eq("id", draftId).eq("source", "story_pack")
+        .is("deleted_at", null).maybeSingle(),
+    );
+    if (!current || current.deleted_at) {
+      throw new HttpError(404, "not_found", "Story Pack not found.");
+    }
+    throw new HttpError(409, "changed_since_read", "The draft changed. Reload it before saving.");
+  }
+  const row = contentDraftRow.parse(updated);
   if (row.deleted_at) {
     throw new HttpError(404, "not_found", "Story Pack not found.");
   }
@@ -623,6 +736,36 @@ export async function handoffContentDraft(s: OwnerSession, draftId: string): Pro
     throw new HttpError(422, "source_media_unavailable", "The selected photos are unavailable. Reload this Story Pack.");
   }
   return { draft: toContentDraft(draft, true), source: toContentSource(current, links) };
+}
+
+// Linked accounts -------------------------------------------------------------
+
+// Column grants keep token_secret_id out of the owner's reach; naming the
+// columns keeps it out of this answer even if a grant ever widens.
+const LINKED_ACCOUNT_FIELDS = "id, platform, display_name, mode";
+
+const linkedAccountRows = z.array(z.object({
+  id: uuid,
+  platform: z.enum(["facebook_page", "instagram"]),
+  display_name: z.string().nullable(),
+  mode: z.enum(["live", "test"]),
+}));
+
+export type LinkedAccountDto = {
+  id: string;
+  platform: "facebook_page" | "instagram";
+  displayName: string | null;
+  mode: "live" | "test";
+};
+
+export async function listLinkedAccounts(s: OwnerSession): Promise<LinkedAccountDto[]> {
+  const rows = await s.db.from("linked_accounts").select(LINKED_ACCOUNT_FIELDS).order("platform").order("created_at");
+  return linkedAccountRows.parse(unwrap(rows)).map((row) => ({
+    id: row.id,
+    platform: row.platform,
+    displayName: row.display_name,
+    mode: row.mode,
+  }));
 }
 
 // Test Zukki ----------------------------------------------------------------

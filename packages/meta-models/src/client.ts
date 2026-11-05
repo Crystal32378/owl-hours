@@ -2,6 +2,10 @@
 // Endpoints and model IDs follow dev.meta.ai/docs (checked 2026-10-28).
 export const META_MODEL_BASE_URL = "https://api.meta.ai/v1";
 
+// Covers the whole call, including reading a streamed body. A free Spark
+// answer with tools has taken ~20 s; anything past this is treated as hung.
+export const META_TIMEOUT_MS = 60_000;
+
 export function requireApiKey(): string {
   const key = process.env.META_MODEL_API_KEY;
   if (!key) {
@@ -26,6 +30,7 @@ export type MetaClientOptions = {
   apiKey?: string;
   baseUrl?: string;
   fetch?: typeof fetch;
+  timeoutMs?: number;
 };
 
 export type MetaClient = {
@@ -40,13 +45,18 @@ export function createMetaClient(options: MetaClientOptions = {}): MetaClient {
   }
   const baseUrl = options.baseUrl ?? META_MODEL_BASE_URL;
   const fetchImpl = options.fetch ?? fetch;
+  const timeoutMs = options.timeoutMs ?? META_TIMEOUT_MS;
 
   async function post(path: string, body: BodyInit, headers: Record<string, string> = {}): Promise<Response> {
-    const response = await fetchImpl(`${baseUrl}${path}`, {
-      method: "POST",
-      headers: { authorization: `Bearer ${apiKey}`, ...headers },
-      body,
-    });
+    const signal = AbortSignal.timeout(timeoutMs);
+    const response = await withTimeout(path, signal, () =>
+      fetchImpl(`${baseUrl}${path}`, {
+        method: "POST",
+        headers: { authorization: `Bearer ${apiKey}`, ...headers },
+        body,
+        signal,
+      }),
+    );
     if (!response.ok) {
       throw await toApiError(response);
     }
@@ -59,6 +69,18 @@ export function createMetaClient(options: MetaClientOptions = {}): MetaClient {
       accept: "application/json",
     });
     return response.json();
+  }
+
+  // Turns the abort into an error that names the call and the limit.
+  async function withTimeout<T>(path: string, signal: AbortSignal, run: () => Promise<T>): Promise<T> {
+    try {
+      return await run();
+    } catch (error) {
+      if (signal.aborted) {
+        throw new Error(`Meta API ${path} timed out after ${timeoutMs} ms`);
+      }
+      throw error;
+    }
   }
 
   return { post, postJson };

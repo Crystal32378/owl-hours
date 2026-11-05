@@ -3,7 +3,7 @@
 import '@astryxdesign/core/reset.css';
 import '@astryxdesign/core/astryx.css';
 import '@astryxdesign/theme-neutral/theme.css';
-import '@astryxdesign/theme-neutral/fonts.css';
+import '../../../shared/theme/figtreeStylesheet';
 import '../../../shared/theme/zukki-theme.css';
 
 import type { DOMProps } from 'expo/dom';
@@ -35,4 +35,6 @@ export default function OnboardingLoadError(props: {
   );
 }
 
-const pageStyle = { display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100dvh' } as const;
+// The DOM host shrinks the root to its content width, so the root claims the full width
+// to center the error state (same cause as ChatScreen's pageStyle).
+const pageStyle = { display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100dvh', boxSizing: 'border-box' } as const;

@@ -21,12 +21,11 @@ Zukki is an AI assistant on WhatsApp that finds an open, nearby local business
 | Concern | Read this | Notes |
 |---|---|---|
 | UI scope, rules, build order | `handoff-ui/HANDOFF-UI.md` | Current (Oct 27 decisions) |
-| Customer messages | `handoff-ui/whatsapp/MESSAGES.md` + `payloads/*.json` | Only what the Cloud API can send; 15 ready-to-send bodies |
-| Owner screens | `handoff-ui/owner-app/HANDOFF-RN-UI.md` + `design/html/*.html` | HTML is truth for copy/layout; Astryx is truth for control look |
-| Verified starter | `handoff-ui/owner-app/starter/` | Expo 58 + Astryx 0.7.4 shell that type-checks and bundles |
+| Customer messages | `handoff-ui/whatsapp/MESSAGES.md` + `packages/whatsapp/src/payloads/` | Only what the Cloud API can send; 15 builders, one per message |
+| Owner screens | `apps/owner` + `handoff-ui/owner-app/HANDOFF-RN-UI.md` | Every screen is live, so its HTML/PNG pair is retired; Astryx is truth for control look |
 | Demo path | `handoff-ui/demo/` | 10 screens, build and rehearse first |
 | Mascot | `apps/owner/assets/mascots/zukki/` | Canonical pack; `handoff-ui/` carries no mascot binaries |
-| Demo numbers | `handoff-ui/owner-app/starter/mock.ts` | Keep identical everywhere (prices, ratings, countdown) |
+| Demo numbers | `apps/owner/shared/data/mock.ts` | Keep identical everywhere (prices, ratings, countdown) |
 
 `docs/HANDOFF.md` describes an older model and is not authoritative for UI work.
 `design/` (root) holds the previous screen set; prefer `handoff-ui/`.

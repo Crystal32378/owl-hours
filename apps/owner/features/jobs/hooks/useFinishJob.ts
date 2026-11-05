@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import type { ID, Job, MoneyRange, QuoteLine } from "../../../shared/data/types.ts";
 import { firstName } from "../../../shared/lib/firstName.ts";
 import type { FinishJobInput, JobsService } from "../services/jobsService.ts";
-import { sharedDemoJobsService } from "./demoJobsService.ts";
+import { jobsRuntime } from "./jobsRuntime.ts";
 
 export type FinishJobDeps = { service: JobsService };
 
@@ -22,7 +22,7 @@ export type FinishJobView = {
 // Returns null while the job loads, or when it does not exist.
 // Pass a stable service (a module constant or memoized): changing it reloads the job.
 export function useFinishJob(id: ID, deps?: Partial<FinishJobDeps>): FinishJobView | null {
-  const [defaults] = useState(createDemoDeps);
+  const [defaults] = useState(createDefaultDeps);
   const service = deps?.service ?? defaults.service;
   const [job, setJob] = useState<Job | null>(null);
 
@@ -64,6 +64,7 @@ async function finishJob(service: JobsService, id: ID, input: FinishJobInput): P
   }
 }
 
-function createDemoDeps(): FinishJobDeps {
-  return { service: sharedDemoJobsService() };
+// The live API when configured, the demo otherwise (S7).
+function createDefaultDeps(): FinishJobDeps {
+  return { service: jobsRuntime().service };
 }

@@ -17,9 +17,21 @@ describe('owner-only CORS',()=>{
     assert.match(response.headers.get('vary') ?? '',/Origin/);
     assert.equal(response.headers.get('access-control-allow-credentials'),null);
   });
+  it('allows PUT for the business replacements (prices, hours, area)',async()=>{
+    const {app}=createApp({ownerAppOrigins:[origin]});
+    const response=await app.request('/v1/owner/business/prices',preflight(origin,'PUT'));
+    assert.equal(response.status,204);
+    assert.match(response.headers.get('access-control-allow-methods') ?? '',/PUT/);
+  });
+  it('allows DELETE for unlinking a Facebook Page or Instagram account',async()=>{
+    const {app}=createApp({ownerAppOrigins:[origin]});
+    const response=await app.request('/v1/owner/linked-accounts/a0000000-0000-4000-8000-000000000001',preflight(origin,'DELETE'));
+    assert.equal(response.status,204);
+    assert.match(response.headers.get('access-control-allow-methods') ?? '',/DELETE/);
+  });
   it('rejects unlisted origins, methods, and headers without a permissive origin response',async()=>{
     const {app}=createApp({ownerAppOrigins:[origin]});
-    for(const request of [preflight('https://owner.example.test.attacker.test'),preflight(origin,'DELETE'),preflight(origin,'POST','authorization,x-zukki-key')]) {
+    for(const request of [preflight('https://owner.example.test.attacker.test'),preflight(origin,'TRACE'),preflight(origin,'POST','authorization,x-zukki-key')]) {
       const response=await app.request('/v1/owner/content/drafts',request);
       assert.equal(response.status,403);
       assert.equal(response.headers.get('access-control-allow-origin'),null);

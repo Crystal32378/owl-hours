@@ -1,5 +1,5 @@
 // Directory categories, matching the rows of WhatsApp payload 02
-// (handoff-ui/whatsapp/payloads/02-what-are-you-looking-for.json).
+// (CATEGORY_LIST in packages/whatsapp/src/payloads/category-list.ts).
 // tenants.category stores the value; the list reply id is "cat_<value>".
 export const CATEGORIES = ["plumbing", "electrical", "locksmith", "food", "beauty", "auto", "pets"] as const;
 

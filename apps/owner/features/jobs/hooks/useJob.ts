@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
 import type { ID, Job } from "../../../shared/data/types.ts";
+import { afterFailedLoad } from "../../../shared/lib/loadState.ts";
+import type { LoadState } from "../../../shared/lib/loadState.ts";
 import { buildJobView } from "../lib/jobView.ts";
 import type { JobView } from "../lib/jobView.ts";
 import type { JobsService } from "../services/jobsService.ts";
-import { sharedDemoJobsService } from "./demoJobsService.ts";
+import { jobsRuntime } from "./jobsRuntime.ts";
 
 export type JobDeps = { service: JobsService };
 
@@ -11,12 +13,14 @@ export type JobDeps = { service: JobsService };
 // and `reload`, which refetches the job without clearing the current view.
 export type JobScreenView = { job: JobView; advance: () => Promise<boolean>; reload: () => void };
 
-// Returns null while the job loads, or when it does not exist.
+// "loading" also covers a job that does not exist; "failed" draws the error state and retries the load.
+export type JobScreen = { status: "loading" } | { status: "failed"; retry: () => Promise<void> } | ({ status: "ready" } & JobScreenView);
+
 // Pass a stable service (a module constant or memoized): changing it reloads the job.
-export function useJob(id: ID, deps?: Partial<JobDeps>): JobScreenView | null {
-  const [defaults] = useState(createDemoDeps);
+export function useJob(id: ID, deps?: Partial<JobDeps>): JobScreen {
+  const [defaults] = useState(createDefaultDeps);
   const service = deps?.service ?? defaults.service;
-  const [job, setJob] = useState<Job | null>(null);
+  const [job, setJob] = useState<LoadState<Job | null>>("loading");
   const [reloadToken, setReloadToken] = useState(0);
   const reload = useCallback(() => setReloadToken((token) => token + 1), []);
 
@@ -28,17 +32,18 @@ export function useJob(id: ID, deps?: Partial<JobDeps>): JobScreenView | null {
         if (isCurrent) setJob(loaded);
       })
       .catch(() => {
-        // A rejected load keeps the current view (null while loading): no error state yet (D22).
+        if (isCurrent) setJob(afterFailedLoad);
       });
     return () => {
       isCurrent = false;
     };
   }, [service, id, reloadToken]);
 
-  if (!job) return null;
+  if (job === "failed") return { status: "failed", retry: async () => reload() };
+  if (job === "loading" || job === null) return { status: "loading" };
 
   const view = buildJobView(job);
-  return { job: view, advance: () => moveToNextStatus(service, job, view.action.nextStatus, setJob), reload };
+  return { status: "ready", job: view, advance: () => moveToNextStatus(service, job, view.action.nextStatus, setJob), reload };
 }
 
 // Refused (already moved on, or nothing to do) and failed both answer false; the screen keeps what it shows.
@@ -59,6 +64,7 @@ async function moveToNextStatus(
   }
 }
 
-function createDemoDeps(): JobDeps {
-  return { service: sharedDemoJobsService() };
+// The live API when configured, the demo otherwise (S7).
+function createDefaultDeps(): JobDeps {
+  return { service: jobsRuntime().service };
 }

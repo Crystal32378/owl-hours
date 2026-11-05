@@ -432,3 +432,172 @@ it with a new one.
   - `13-quote.json` stays: it retires only when `packages/whatsapp` sends the message.
   - Out of T5.2: the real WhatsApp send, the customer pressing a button, the chat list preview line, an
     error state for a rejected load (L37 gap).
+
+## D24 — Accepting an offer opens the job (2026-10-31)
+
+- **Decision:** `private.accept_handoff` (migration `20261031120000_accept_opens_job.sql`) calls the new
+  `private.open_job(handoff)` after an in-time accept. It inserts one job for the handoff's business and
+  conversation in state `proposed`, titled from the conversation (fallback "Service request"), with the
+  offer's suggested range, and logs a `job_events` row (`null → proposed`, actor `owner`). An expired
+  accept and a decline open no job. The public `accept_handoff` wrapper and the API are unchanged.
+- **Why:** no function created jobs, so `send_quote`, which needs a `proposed` or `owner_confirmed` job,
+  only worked on the seeded one; a live request could be accepted but never quoted.
+- **Consequences:** `proposed` matches the seeded demo job, so the quote and approve-visit paths run
+  unchanged. Jobs keep the table's default currency (businesses have no currency column).
+  Tests: `supabase/tests/accept_creates_job.test.sql`.
+
+## D25 — Zukki suggests the quote range on the offer (2026-10-31)
+
+- **Decision:** "Connect me" now creates the offer with a suggested range from the business's own price
+  rules (`apps/api/src/services/suggested-quote.ts`): the `callout` visit, plus the cheapest
+  `repair_range`, plus the `night_fee` when the business's local hour falls inside its window
+  ("10 PM-7 AM"; an unreadable window never applies). The seeded Northside offer ($45 + $25 + $60–90 =
+  $130–160) already followed this formula.
+- **Why:** live offers had no `suggestedQuote`, so the owner chat hid "Zukki suggests sending the quote"
+  and the quote had no starting range.
+- **Consequences:** the accepted job inherits the range (D24), so the quote draft opens with it.
+
+## D26 — Story Pack source-job deletion (2026-10-31)
+
+- Following Crystal's explicit retention choice, a new forward migration deletes
+  only linked Story Pack rows when the source job is deleted, including approved
+  packs. Preserve the existing legacy FK semantics and historical tombstone guards.
+- No deletion UI/API is added. A future surface or maintenance operation must
+  show affected counts and obtain confirmation. Original photo records and Storage
+  objects are retained by job deletion; broader conversation purges, Storage GC,
+  backup erasure and recall of downloaded exports are outside this change.
+- See `docs/STORY-PACK-DATA.md` for preflight and exact preservation boundaries.
+
+## D27 — Story Pack write version and deletion notice (2026-10-31)
+
+- Keep the current server pack separate from the version on which dirty edits
+  began. Atomically reject stale saves, and preserve local text on conflict.
+- Do not export dirty copy after remote approval; offer explicit discard to
+  restore the authoritative saved pack. Detect a changed selected version during
+  pending writes without rejecting the ordinary save-then-approve success path.
+- Keep the team's existing component split and source-photo fetch dependency.
+  Enforce exactly two selected photos at the frontend boundary as well.
+- Record the user's Story-only draft deletion choice, but do not invent an owner
+  delete feature. The existing workspace shows a scope notice; any actual future
+  UI or maintenance deletion still needs explicit confirmation. Original photo
+  files and unverified backup retention are separate concerns. See
+  `docs/STORY-PACK-FOLLOWUP.md` for the data-follow-up dependency and scope.
+
+## D28 — One job per accepted offer (2026-11-01)
+
+- **Decision:** `private.resolve_handoff` opens the job on accept (hosted migration `20261029101127`, ported from `fix/issue-14`). `private.open_job` (D24) returns the job the handoff already has and only inserts when there is none (`20261101100000_accept_opens_one_job.sql`).
+- **Why:** the hosted Supabase project already ran `20261029101127`; applying main's `20261031120000_accept_opens_job` on top would insert two jobs per accept, since `jobs.handoff_id` is not unique. Keeping the hosted versions byte-identical keeps the repo and hosted `schema_migrations` in step.
+- **Consequences:** the accepted job carries the business currency and the request ticket. `accept_handoff` locks the handoff row, so concurrent accepts cannot both open a job. `supabase/tests/accept_creates_job.test.sql` pins one job per accept.
+
+## D29 — Live Content shows the API's truth (2026-11-01)
+
+- **Approve:** `PostsClient.savePost` returns the post as the store holds it, and `postsService.approve` answers that. In live mode the status is the API's (`approved` after `review_content_draft`), mapped one to one; the app no longer maps `approved` to `scheduled`, so an approved post never lands in the "Published" card. Only an API `published` shows as published. Nothing posts to Facebook or Instagram: there is no Meta publishing integration. The demo keeps its local scheduled/published approval.
+- **Regenerate:** `apps/api` has no generator of post copy (the only LLM rewrite, `polish.ts`, rewrites owner chat messages). Live mode sets `canRegenerate: false` and the review screen hides the button instead of cloning the draft locally; the demo keeps it.
+- **Linked accounts:** `GET /v1/owner/linked-accounts` reads `id, platform, display_name, mode` through the owner's client (RLS and column grants, pinned by `supabase/tests/rls.test.sql`). Live `useLinkedAccounts` and the Content "Connected" line use it; each returned row shows as connected.
+
+## D30 — The live chat shows the sent quote, quotes without a suggestion, and the accept time (2026-11-01)
+
+- **Decision:** `private.send_quote` (migration `20261101200000_quote_message_and_accepted_at.sql`) also
+  writes an owner `messages` row linked by the new `messages.quote_id`. The row is stored as `sent`, so
+  `claim_outbox` never picks it up: the customer still receives the quote as Zukki's notice 13.
+  `owner_conversation_messages` returns the row's `quote` (`lines, total, arrivalFrom, arrivalTo, note,
+  technician`, `delivery` null) and leaves out Zukki's notice for a quote the thread already shows.
+  `owner_conversations` returns `acceptedAt` (the handoff's `resolved_at`).
+  - The live chats client maps `quote` to `Message.quote` (arrival as device clock times), so the D23
+    bubble draws it; `Conversation` gains optional `jobId` and `acceptedAt`.
+  - The chat offers "Send a quote" (the quote modal's title) whenever its job has no sent quote and
+    Zukki suggests nothing; the SuggestionRow still wins when there is a suggestion.
+  - The chat's "You accepted at" reads `acceptedAt`; the demo, which has none, keeps its first message.
+- **Why:** live quotes only showed in Jobs, a request without a suggested range could not be quoted
+  from the chat, and the accept time was the oldest loaded message
+  (`odd/tasks/owner-chat-live-fixes.md`, S1-S3).
+- **Consequences:** quotes sent before this migration have no owner quote message; their Zukki notice
+  still shows as a Zukki message. `supabase/tests/owner_chat_quote.test.sql` pins the outbox exclusion.
+
+## D31 — Onboarding creates the business and saves through the owner API (2026-11-01)
+
+- **Decision:** `POST /v1/owner/business` runs `public.owner_create_business` (`20261101240000_owner_create_business.sql`): a security-invoker entry point over a private definer that creates the tenant and the caller's owner membership in one transaction, or updates the business the caller already owns. The live onboarding client saves the profile there and the later steps through `PUT /business/prices` and `PUT /business/area` and `PATCH /business` (night jobs); fees and the hours summary read `GET /business`.
+- **Why:** no migration created a business, so a newly signed-up owner had no tenant and every owner business route answered `404`. Owners have no insert grant or policy on `tenants`/`tenant_users`, so the insert needs definer rights; keeping it in `private` behind an invoker wrapper keeps `rls.test.sql`'s "no public definer" rule. An advisory lock per user makes two simultaneous first calls create one business; staff and anonymous callers are refused.
+- **Derived columns:** `slug` is the name in slug form plus a 6-character random suffix; `short_name` is the first word of the name (the rule `20261028113954` used); `timezone` stays `UTC`; the membership `display_name` is the sign-up name, or the short name when the app no longer has it.
+- **Location:** onboarding never asks for one, so a new business stores the placeholder point (0, 0) and starts with no service area. The area step saves the radius around the business's stored area centre, or (0, 0) when it has none; matching (`find_businesses`) needs the customer within reach of both `tenants.location` and the area, so such a business is matched with no real customer until a location step sets a real point (open follow-up). It also starts not taking requests.
+- **Website import:** `apps/api` has no importer, so live mode imports nothing (`{ services: 0, prices: [] }`) and the prices step starts from the business's own prices; the demo keeps its imported prices.
+
+## D32 — Onboarding takes the business location from the device (2026-11-01)
+
+- **Decision:** `public.owner_save_area` (`20261102100000_owner_business_location.sql`) also sets `tenants.location` to the area centre, and `public.owner_business` (so `GET /v1/owner/business`) adds `hasLocation`, false while the business is still at the (0, 0) placeholder. In live mode the onboarding area step offers "Use my current location": the native route asks for foreground permission and reads one position with `expo-location` (`requestForegroundPermissionsAsync`, `getCurrentPositionAsync`, https://docs.expo.dev/versions/latest/sdk/location/), then saves the area at that point with the chosen radius (`PUT /business/area`). Finish stays disabled while `hasLocation` is false; a denied permission or an unreadable position shows a short message and keeps the step.
+- **Why:** matching (`search_directory`/`find_businesses`) needs the customer within reach of both `tenants.location` and a service-area circle, so a business created at (0, 0) (D31) was never found. The owner chose the device location over a typed address, which needs no geocoding service.
+- **Kept:** a business with a real location keeps it unless the owner uses the action again; a radius change saves around the stored area centre. The demo business has its location preset, so demo mode shows no action and finishes as before. The DOM screen gets only the derived props (whether to offer the action, the message, whether Finish is disabled) and an async callback; the permission and save outcomes are mapped in `features/onboarding/lib/areaLocation.ts`.
+- **Delivery:** `expo-location` is a native module with a config plugin (`locationWhenInUsePermission` in `apps/owner/app.json`), so it ships in a new build; an EAS Update alone cannot add it.
+
+## D33 — The area step draws a MapLibre map on OpenFreeMap tiles; dark mode keeps the blue readable (2026-11-01)
+
+- **Decision:** the onboarding area step replaces the static map picture with a MapLibre GL JS map (`maplibre-gl` 5.x, https://maplibre.org/maplibre-gl-js/docs/) rendered inside the `'use dom'` screen (https://docs.expo.dev/guides/dom-components/). It loads the OpenFreeMap vector styles (https://openfreemap.org/quick_start/, no API key): `https://tiles.openfreemap.org/styles/liberty` in light mode and `https://tiles.openfreemap.org/styles/dark` in dark mode, picked from `prefers-color-scheme` (the same preference the Astryx `Theme` follows in system mode). It centres on the business's area centre (new `getCenter` on the onboarding service, read from `GET /business`), draws the radius as a 64-sided GeoJSON circle that follows the slider, keeps pan/zoom on, and shows the source attribution expanded ("OpenFreeMap © OpenMapTiles Data from OpenStreetMap"). The pin is draggable; the drop is saved as the business location through `PUT /business/area` with the current radius, exactly like "Use my current location". A missing location, or the (0, 0) placeholder (D31), shows a world overview with no pin and no circle.
+- **Why 5.x, not 6.x:** maplibre-gl 6 ships ES modules only and loads its web worker from a separate `maplibre-gl-worker.mjs` found through `import.meta.url`. Metro's export does not emit that file, and on Android the DOM bundle is served from `file://`, where v6's worker auto-detection returns nothing. 5.x bundles the worker inline (blob URL), so it runs in Metro and in the DOM webview with no bundler change. `maplibre-gl.css` is a plain local stylesheet (no `@import`), so the export lists no `.css-external` asset (checked with `npx expo export --platform android --clear`).
+- **Logic:** the circle, its bounds, the overview/centre choice, the dragged-point wrap and the style URL are pure functions in `features/onboarding/lib/areaMap.ts`; `AreaMap.tsx` only draws them.
+- **Dark mode:** Astryx Neutral sets `--color-on-accent` to `#111` in dark mode because its dark accent is near-white; Zukki's accent is a fixed blue, so `zukki-theme.css` sets `--color-on-accent: var(--color-on-dark)` (white in both modes), the token Astryx's `Button` primary variant uses for its label. `.zukki-root` no longer forces `color-scheme: light`, so native controls follow the theme too. The prices step's owl says the prices came from the website only when there are prices; with none (live mode imports nothing, D31) it asks the owner to add them.
+- **Not changed:** Business > service area keeps its static map strip: the business screen gets no area centre from its hook and route yet (follow-up).
+- **Consequences:** the map needs network access to `tiles.openfreemap.org` (CORS `*`); offline it shows an empty map while the radius slider, location action and Finish keep working.
+
+## D34 — Owners add, edit and remove extra fees (2026-11-02)
+
+- **Decision:** `public.owner_save_fees(jsonb)` (`20261102110000_owner_save_fees.sql`, behind `PUT /v1/owner/business/fees`) replaces the caller's fee list the way `owner_save_prices` replaces the prices: security invoker, scoped by `private.caller_owned_business_id()`, a listed id of the caller's fees is updated, anything else is added, an unlisted fee is removed. `atNight` stores kind `night_fee`, otherwise `extra_fee`. `owner_business` lists each fee with `atNight`. The onboarding prices step and Business > Prices edit fees in `FeeEditor` (name, amount, "At night" switch, edit and remove, "Add a fee", and an empty state when there are none).
+- **Why:** owners could see fees but not add any, and a business without fees showed an empty card with nothing telling the owner what fees are for (`odd/tasks/owner-area-map-fees-dark.md`, S2).
+- **Night window:** the suggested quote adds a night fee only inside its window (`conditions`), so a night fee keeps its window, and a new or switched night fee gets `10 PM-7 AM`, the window the seed uses. A fee switched off night drops it. The owner cannot edit the window yet.
+- **Kept apart:** fee saves never touch prices or the visit (callout); price saves never touch fees. "At cost" fees are not in the editable list: the save leaves them, and the screens show them read-only. Nothing creates them in live mode today.
+- **Demo:** the shared demo seed (`shared/data/mock.ts`) has no `atNight`, so `ExtraFee.atNight` is optional and a fee with a window reads as a night fee; the demo clients store saved fees through `withSavedFees` (`features/business/lib/feeDraft.ts`), mirroring what the database answers.
+
+## D35 — The Business tab draws the service area on the same MapLibre map, read-only (2026-11-01)
+
+- **Decision:** the area step's map moves to `apps/owner/shared/map/` (`ServiceAreaMap.tsx`, geometry and styles in `areaMap.ts`), and the Business tab's Service area row draws it in place of the static city picture. It uses the same OpenFreeMap styles as D33 (light/dark from `prefers-color-scheme`) and keeps the attribution expanded. Without an `onMove` callback the map is read-only: MapLibre's `interactive: false` (https://maplibre.org/maplibre-gl-js/docs/API/type-aliases/MapOptions/) and a pin that is not draggable, so the row never catches the screen's scroll. The onboarding step passes `onMove` and keeps pan/zoom and the draggable pin.
+- **Location:** the row centres on `area.center` from `GET /v1/owner/business` only when its `hasLocation` is true; while the business sits at the (0, 0) placeholder (D31) it shows the world overview, like the area step. The live client carries `hasLocation` in the row extras (`BusinessRowExtras`), since the shared `Business` type and its demo seed have no such field. The demo business sits at (0, 0), so demo mode shows the overview.
+
+## D36 — Owners link Facebook and Instagram and "Approve and post" publishes (2026-11-02)
+
+- **Decision:** owners link their Facebook Page, and the Instagram professional account connected to it, through the Facebook Login manual flow (https://developers.facebook.com/docs/facebook-login/guides/advanced/manual-flow). `GET /v1/owner/meta/connect-url` signs a ten-minute `state` (HMAC-SHA256, key derived from `ZUKKI_SERVER_KEY`) that carries the caller's own business and user id; the public `GET /v1/meta/callback` validates it, exchanges the code, gets a long-lived user token (https://developers.facebook.com/docs/facebook-login/guides/access-tokens/get-long-lived) and the Page tokens, and stores each in Supabase Vault (https://supabase.com/docs/guides/database/vault) through `private.save_linked_account` (security definer, service_role only, owner checked from the state's user id). Graph API v26.0 by default (https://developers.facebook.com/docs/graph-api/changelog); every token call carries `appsecret_proof` (https://developers.facebook.com/docs/graph-api/securing-requests).
+- **Publishing is its own route, not part of review:** `POST /v1/owner/content/drafts/:id/publish` runs after `review` approves. Review stays one locked database transition; posting is network work that can fail half way, so it must be retryable without a second review. Each platform's post id goes to `content_publications` (one row per draft and platform) and `record_content_publication` marks the draft `published` with the last one, so a failure leaves it `approved` and a retry posts only the platforms still missing, never twice. The Story Pack manual-delivery trigger now allows `published` only when every targeted platform has a post.
+- **Posting:** Page: each photo uploaded with `published=false`, then one `/{page-id}/feed` post with `attached_media` (https://developers.facebook.com/docs/graph-api/reference/page/photos/). Instagram: a carousel container of the two photos, its `status_code`, then `media_publish` (https://developers.facebook.com/docs/instagram-platform/content-publishing), with the Page token. One account per platform: the earliest linked.
+- **Permissions:** `pages_show_list`, `pages_read_engagement`, `pages_manage_posts`, `instagram_basic`, `instagram_content_publish` (https://developers.facebook.com/docs/permissions), or a Facebook Login for Business `config_id` when `META_LOGIN_CONFIG_ID` is set (Meta recommends a configuration over `scope`: https://developers.facebook.com/docs/facebook-login/facebook-login-for-business).
+- **Owner app:** the web app leaves for Facebook in the same tab and the callback returns it to `OWNER_WEB_URL/content/accounts?meta=...`. Native (user decision, 2026-11-02: login inside the app) asks for `GET /meta/connect-url?return=app` and opens the URL with `expo-web-browser` `openAuthSessionAsync(url, Linking.createURL('content/accounts'))` (https://docs.expo.dev/versions/latest/sdk/webbrowser/, https://docs.expo.dev/versions/latest/sdk/linking/); the signed state carries the return target, so the callback redirects to `zukki-owner://content/accounts?meta=...` and the session resolves with that URL. Only those two destinations exist; the client never sends a URL. `expo-web-browser` is a native module, so this ships in a new build, not an EAS Update. Each linked account has an Unlink action (`DELETE /linked-accounts/:id`; owner CORS allows `DELETE`).
+- **Kept:** tokens never reach the owner: RLS and column grants on `linked_accounts` are unchanged, Vault is unreachable for `authenticated`, and the token functions are service_role only. The demo has no Connect action and posts nothing.
+- **One link per state, one post per platform:** the callback consumes the state's nonce in `private.meta_oauth_nonces` (insert on conflict; purged an hour after expiry), so a replayed state with another code links nothing. Before posting, `/publish` claims every target platform in `private.content_publication_claims` (all or nothing; the draft row lock serializes claims with `record_content_publication`), so a second simultaneous request answers `409 publish_in_progress` without posting. A Graph error releases the platform for the retry; any other failure (timeout, lost connection, failed recording) keeps the claim, because Meta may have posted, until it expires after 15 minutes. `content_publications.external_id` accepts the same id shape as the Graph client, so a post Meta made is never refused on record.
+- **Limits:** development mode only until App Review (a user step). Instagram takes JPEG only; photos are not converted. If a post succeeds on Meta but recording its id fails, the platform stays claimed for 15 minutes, then a retry can post it again.
+
+## D37 — Spark reads the whole photo or video, then SAM marks the valve it names (2026-11-02)
+
+- **Decision:** when the need may be a leak, `triageMedia` sends the customer's whole photo or video to Muse Spark over the Responses API with a JSON schema (https://dev.meta.ai/docs/video-understanding, https://dev.meta.ai/docs/structured-output). It answers the problem, its severity, whether closing the water helps, the valve's object name and the best second. SAM 3.1 runs on that frame with that name; SAM's docs say it locates what it is told and does not reason about a scene (https://dev.meta.ai/docs/sam/segmenting).
+- **Why:** on the Drive test set SAM marked 0 of 12, including a photo of a valve, because "shut-off valve" and "water valve" return nothing while "valve" returns a box. Only one frame at 1 s reached the models, and Zukki told customers to close a valve for a roof leak.
+- **Three answers, not two:** `wont_help` drops the valve advice for one plain message; `unclear` keeps the general advice, so doubt never silences it. A failed reading falls back to the earlier path.
+- **`store: false`:** a customer's media stays out of stored responses, which also refuse requests of about 29 MB with a 413.
+- **Limits:** Spark did not see the small drip in two faucet videos, at any `fps`. A reading adds about 10-20 s to the reply. SAM accepts MP4 and MOV, not WebM; WhatsApp sends MP4 or 3GPP, and a 3GPP clip falls back. Only "may be a leak" media is read, so other categories still send one frame.
+
+## D38 — The customer always gets the reading, and valves are found by Spark's points (2026-11-02)
+
+- **Decision:** after a photo or video that may be a leak, Zukki sends a quick notice, then Spark's `customerMessage` (what it sees and what to do now, in the customer's language), then the marked valve when one was found. Spark locates each valve on the chosen frame; SAM cuts each one out with a point prompt (https://dev.meta.ai/docs/sam/segmenting) and every valve is circled. Words are the fallback.
+- **Why:** a real video of a leaking sink drain got only a location request: the need read as not urgent, so the safety step was skipped and the reading was thrown away. On that frame SAM found no valve for "valve", "handle" or "knob", but a box for each valve when pointed at it. Spark's points were accurate from the frame and far off from the whole video, so locating is a second call.
+- **Marked valves are always shown:** when closing the valve would not stop the leak, the card says "If water gets out of hand" with one Got it button and asks nothing, so the location request follows at once. Nothing is marked when nothing is wrong.
+- **A point is not proof of a valve:** SAM cuts out whatever sits at a point, so a box over half of the frame is dropped and at most four points are asked. A wrong small object can still be circled; there is no second check.
+- **All categories:** every photo or video is read, for plumbing, electrical, locksmith, food, beauty, auto and pets, with safety rules in the prompt: wires, gas, unsafe cars, and no diagnosis of a pet or a person. Only water problems look for a valve; nothing else is marked.
+- **Limits:** a reading took 14-56 s in tests. Fixed copy stays in English; only Spark's message follows the customer's language.
+
+## D39: A run with no accounts, on a fake WhatsApp and recorded models
+
+- **Decision:** `scripts/local/judge.sh` runs the product from a clean clone with Docker, Node, pnpm and ffmpeg only. WhatsApp is `scripts/local/fake-whatsapp.mjs`; without a key, the models are `scripts/local/replay-models.mjs` serving answers recorded from real runs. With `META_MODEL_API_KEY`, the same run calls Meta.
+- **Why:** the hackathon's judges run the project from the repo without an account on an outside service, and they cannot use our WhatsApp number. Hosting is not required.
+- **Replay stays honest:** the API logs `not calling Meta`, and a request with no recording gets an error, so other media get no reading instead of the sample's.
+- **Tokens stay safe:** `WHATSAPP_GRAPH_HOST` and `META_MODEL_BASE_URL` accept loopback URLs only, and production is unchanged when they are unset.
+- **Limits:** recordings cover the sample video and the demo script. With no key, a message the owner types in the chat went out as written; polishing with Zukki's version was not tried.
+
+
+## D40: A customer chat on the fake WhatsApp
+
+- **Decision:** the page at `http://127.0.0.1:4010` lets a person play the customer: type, tap buttons and lists, attach media and share a location. Each message goes to the API as the signed webhook WhatsApp would send (`scripts/local/customer-webhook.mjs`, shared with `scripts/e2e/wa-customer.mjs`).
+- **Why:** hosted model calls fail, and the owner app and customer flow still have to be shown working end to end. The orchestrator, database and owner app are the real ones; only the phone is replaced.
+- **It is not WhatsApp:** the page says so and does not copy WhatsApp's look. It is local only, like the rest of the fake.
+- **Replay stays honest:** the sample video keeps its recorded caption and the customer keeps the recorded name, because a replay matches the request. Other text and media reach the models with a key, and get no reading without one.
+- **Murphy Plumbing (Demo):** a fictional Taipei tenant in the seed, with its listed prices. The night window and the map point are assumptions, and the seed has no table for its services list. Ana's $130-160 is a discount, so Murphy's rules would suggest $140-170.
+
+## D41: The customer chat says where the model answers come from
+
+- **Decision:** the chat page shows `Recorded model answers` or `Live models`. `fake-whatsapp.mjs` picks the text from `META_MODEL_BASE_URL`, the same signal behind the API's `not calling Meta` log.
+- **Why:** the organizers ask for replayed parts to be labeled clearly, and a terminal line does not appear in a screen recording.
+- **Limits:** the owner app has no such note. Its model text is labeled by the README and the chat page of the same run.

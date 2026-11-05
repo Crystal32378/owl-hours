@@ -95,3 +95,54 @@ export async function createChatCompletion(client: MetaClient, request: ChatRequ
     },
   };
 }
+
+export type UnderstandMediaInput = {
+  prompt: string;
+  mediaType: "image" | "video";
+  // Public URL or base64 data URL (https://dev.meta.ai/docs/video-understanding).
+  mediaUrl: string;
+  schemaName: string;
+  schema: Record<string, unknown>;
+};
+
+// Reasoning shares this budget with the answer: at 4000 a video's answer came back empty or cut mid-JSON.
+const UNDERSTAND_MAX_OUTPUT_TOKENS = 16000;
+
+const responseSchema = z.object({
+  output: z.array(
+    z.object({
+      type: z.string(),
+      content: z.array(z.object({ text: z.string().optional() })).optional(),
+    }),
+  ),
+});
+
+// Spark reading a whole photo or video over the Responses API, the path the docs give for video.
+// Answers the JSON text the schema asked for.
+export async function understandMedia(client: MetaClient, input: UnderstandMediaInput): Promise<string> {
+  const response = responseSchema.parse(
+    await client.postJson("/responses", {
+      model: SPARK_MODEL,
+      max_output_tokens: UNDERSTAND_MAX_OUTPUT_TOKENS,
+      // A customer's media stays out of Meta's stored responses, which also refuse about 29 MB and up with a 413.
+      store: false,
+      text: { format: { type: "json_schema", name: input.schemaName, schema: input.schema, strict: true } },
+      input: [
+        {
+          type: "message",
+          role: "user",
+          content: [{ type: "input_text", text: input.prompt }, mediaPartOf(input)],
+        },
+      ],
+    }),
+  );
+  const text = response.output.find((item) => item.type === "message")?.content?.[0]?.text;
+  if (!text) throw new Error("Spark answered no text for the media");
+  return text;
+}
+
+function mediaPartOf(input: UnderstandMediaInput) {
+  return input.mediaType === "video"
+    ? { type: "input_video", video_url: input.mediaUrl }
+    : { type: "input_image", image_url: input.mediaUrl };
+}

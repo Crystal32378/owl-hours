@@ -1,22 +1,14 @@
 // Hook for OwContent screen: loads accounts summary, drafts list, and published list.
 import { useCallback, useState } from "react";
 import { useFocusEffect } from "expo-router";
-import { DEMO_NOW } from "../../../shared/data/mock.ts";
 import type { ID, PostDraft } from "../../../shared/data/types.ts";
 import { contentCopys } from "../copys/contentCopys.ts";
 import { resolveJobPhotos } from "../lib/jobPhotos.ts";
 import { postWhenText } from "../lib/postWhenText.ts";
 import { sourceLine } from "../lib/sourceLine.ts";
-import {
-  createAccountsService,
-  createFakeAccountsClient,
-} from "../services/accountsService.ts";
 import type { AccountsService } from "../services/accountsService.ts";
-import {
-  createPostsService,
-  defaultFakePostsClient,
-} from "../services/postsService.ts";
 import type { PostsService } from "../services/postsService.ts";
+import { contentRuntime } from "./contentRuntime.ts";
 
 export type ContentDraftRow = {
   id: ID;
@@ -52,12 +44,14 @@ export type ContentState =
 export type ContentDeps = {
   postsService: PostsService;
   accountsService: AccountsService;
+  clock: () => string;
 };
 
 export function useContent(deps?: Partial<ContentDeps>): ContentState {
   const [defaultDeps] = useState(createDefaultDeps);
   const postsService = deps?.postsService ?? defaultDeps.postsService;
   const accountsService = deps?.accountsService ?? defaultDeps.accountsService;
+  const clock = deps?.clock ?? defaultDeps.clock;
 
   const [state, setState] = useState<ContentState>({ status: "loading" });
 
@@ -104,7 +98,7 @@ export function useContent(deps?: Partial<ContentDeps>): ContentState {
       const scheduledRows: ContentPublishedRow[] = scheduled.map((s) => ({
         id: s.id,
         title: s.title,
-        publishedDateText: postWhenText(s.scheduledFor, DEMO_NOW) ?? "",
+        publishedDateText: postWhenText(s.scheduledFor, clock()) ?? "",
       }));
 
       const regularPublishedRows: ContentPublishedRow[] = published.map((p) => ({
@@ -127,7 +121,7 @@ export function useContent(deps?: Partial<ContentDeps>): ContentState {
     } catch {
       setState({ status: "error", retry: load });
     }
-  }, [postsService, accountsService]);
+  }, [postsService, accountsService, clock]);
 
   useFocusEffect(
     useCallback(() => {
@@ -154,8 +148,10 @@ function formatPublishedDate(publishedAt?: string): string {
 }
 
 function createDefaultDeps(): ContentDeps {
+  const root = contentRuntime();
   return {
-    postsService: createPostsService(defaultFakePostsClient),
-    accountsService: createAccountsService(createFakeAccountsClient()),
+    postsService: root.postsService,
+    accountsService: root.accountsService,
+    clock: root.now,
   };
 }

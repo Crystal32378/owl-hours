@@ -25,11 +25,11 @@ async function fixture() {
   return { source, draft, deps, calls, patches, snapshots, accepted };
 }
 
-test('save sends only the editable fields and accepts the saved pack against the draft', async () => {
+test('save sends editable fields with the write precondition and accepts the saved pack against the draft', async () => {
   const { draft, deps, patches, accepted } = await fixture();
   const saved = await saveStoryPackDraft(deps);
   assert.ok(saved);
-  assert.deepEqual(patches, [{ caption: draft.caption, slides: draft.slides, platforms: draft.platforms }]);
+  assert.deepEqual(patches, [{ caption: draft.caption, slides: draft.slides, platforms: draft.platforms, expectedUpdatedAt: draft.updatedAt }]);
   assert.deepEqual(accepted, [[saved, draft]]);
 });
 

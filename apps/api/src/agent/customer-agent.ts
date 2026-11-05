@@ -1,13 +1,13 @@
-// Customer agent copy. The copy strings match handoff-ui/whatsapp/payloads
-// (01 disclosure, 14 off-topic); test/customer-agent.test.ts checks them.
+// Customer agent copy. The fixed strings come from the @owl-hours/whatsapp
+// builders (01 disclosure, 14 off-topic); test/customer-agent.test.ts checks them.
 import { CATEGORIES, HOME_EMERGENCY_CATEGORIES } from "@owl-hours/shared";
+import { disclosure, offTopic, textBody } from "@owl-hours/whatsapp";
 
 // Sent by our code, not the model, as the first message of every chat
 // (handoff principle 2), so it can never be skipped or reworded.
-export const AI_DISCLOSURE =
-  "Hi, I'm Zukki, an AI assistant that finds you a local business and connects you with it. A person from the business confirms every request.";
+export const AI_DISCLOSURE = textBody(disclosure({ to: "" }));
 
-export const OFF_TOPIC_REPLY = "I can only help you find and contact local businesses. What do you need today?";
+export const OFF_TOPIC_REPLY = textBody(offTopic({ to: "" }));
 
 // System prompt for the Spark customer agent. Rules mirror AGENTS.md:
 // a person confirms every job, prices only from tools.

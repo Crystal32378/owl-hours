@@ -1,85 +1,101 @@
-// Zukki's wording, from handoff-ui/whatsapp/payloads (01-15). Written by
+// Zukki's wording, built by @owl-hours/whatsapp (payloads 01-15). Written by
 // our code, not the model, so the disclosure, safety steps and prices can
 // never be reworded or invented.
+//
+// copy queues the content: the body plus the row extras the wire format has
+// no room for (variant, business_id, quote_id, notice). The outbox addresses
+// the real recipient at send time. Every payload string, button, header,
+// footer and limit lives in the builders.
+import * as builders from "@owl-hours/whatsapp";
 import type { Category } from "@owl-hours/shared";
-import { AI_DISCLOSURE, OFF_TOPIC_REPLY } from "../agent/customer-agent.ts";
 import type { Match, ReplyButton, ZukkiMessage } from "./types.ts";
 
-// WhatsApp limits: button title 20, header and footer 60, button body 1024.
-const HEADER_MAX = 60;
-const FOOTER_MAX = 60;
-const BUTTON_BODY_MAX = 1024;
-
-const NOUNS: Record<Category, string> = {
-  plumbing: "plumber",
-  electrical: "electrician",
-  locksmith: "locksmith",
-  food: "place",
-  beauty: "salon",
-  auto: "mechanic",
-  pets: "pet business",
-};
-
-export const nounFor = (category: Category): string => NOUNS[category];
-
-// "a plumber who is open", "a place that is open".
-function someone(category: Category, options: { another?: boolean } = {}): string {
-  const noun = nounFor(category);
-  const who = category === "food" || category === "pets" ? "that" : "who";
-  return `${options.another ? `another ${noun}` : article(noun)} ${who} is open near you`;
-}
+// The builders address the Cloud API body; the outbox sets the real
+// recipient when it sends, so copy passes a blank `to` and keeps the content.
+const QUEUE_TO = "";
 
 const text = (body: string, payload?: Record<string, unknown>): ZukkiMessage =>
   payload ? { kind: "text", body, payload } : { kind: "text", body };
 
-const clip = (value: string, max: number): string => (value.length <= max ? value : `${value.slice(0, max - 1)}…`);
-
-export function money(amount: number, currency: string): string {
-  return currency === "USD" ? `$${amount}` : `${amount} ${currency}`;
+// The text of a built message of any kind (text, button card, list, location
+// request): every one carries body.text.
+function bodyOf(message: builders.OutgoingMessage): string {
+  const text = message.text as { body: string } | undefined;
+  if (text) return text.body;
+  const interactive = message.interactive as { body: { text: string } };
+  return interactive.body.text;
 }
 
-export function moneyRange(min: number, max: number, currency: string): string {
-  if (min === max) return money(min, currency);
-  return currency === "USD" ? `$${min}–${max}` : `${min}–${max} ${currency}`;
+// The button-card parts of a built message: body, buttons, header and
+// footer. The row keeps them under its variant with the extras the wire
+// format has no room for (business_id, quote_id, notice).
+function cardOf(message: builders.OutgoingMessage): {
+  body: string;
+  buttons: ReplyButton[];
+  headerText?: string | undefined;
+  headerImageUrl?: string | undefined;
+  footer?: string | undefined;
+} {
+  const interactive = message.interactive as {
+    body: { text: string };
+    action: { buttons: Array<{ reply: ReplyButton }> };
+    header?: { type: string; text?: string; image?: { link: string } } | undefined;
+    footer?: { text: string } | undefined;
+  };
+  const header = interactive.header;
+  return {
+    body: interactive.body.text,
+    buttons: interactive.action.buttons.map((button) => button.reply),
+    ...(header?.type === "text" && header.text ? { headerText: header.text } : {}),
+    ...(header?.type === "image" && header.image ? { headerImageUrl: header.image.link } : {}),
+    ...(interactive.footer ? { footer: interactive.footer.text } : {}),
+  };
 }
 
 // 01
-export const disclosure = (): ZukkiMessage => text(AI_DISCLOSURE);
+export const disclosure = (): ZukkiMessage => text(builders.textBody(builders.disclosure({ to: QUEUE_TO })));
 
 // 14
-export const offTopic = (): ZukkiMessage => text(OFF_TOPIC_REPLY);
+export const offTopic = (): ZukkiMessage => text(builders.textBody(builders.offTopic({ to: QUEUE_TO })));
 
-// 02: the sections and rows live in outbox.ts (CATEGORY_LIST).
+// 02
 export const categoryList = (): ZukkiMessage => ({
   kind: "interactive",
-  body: "What are you looking for? You can also send a photo, a video or a voice note.",
+  body: bodyOf(builders.whatAreYouLookingFor({ to: QUEUE_TO })),
   payload: { variant: "category_list" },
 });
 
-export const SAFETY_BUTTONS: ReplyButton[] = [
-  { id: "safety_done", title: "Done, no cables" },
-  { id: "safety_cant_find", title: "I can't find it" },
-];
-
 // 04. With a marked frame the image shows the valve; without one, general
 // advice and no picture (handoff rule 10: never point at a pipe we did not find).
-export function waterSafety(input: { markedFrameUrl: string | null; advice: string | null }): ZukkiMessage {
-  const body = input.markedFrameUrl
-    ? "Let's stop the water first: turn this valve clockwise. Any outlets or cables near the water?"
-    : `Let's stop the water first. ${
-        input.advice ??
-        "Find the shut-off valve on the pipe under or behind the fixture and turn it clockwise until it stops."
-      } Any outlets or cables near the water?`;
+export function waterSafety(input: { markedFrameUrl: string | null; advice: string | null; ifItGetsWorse?: boolean }): ZukkiMessage {
+  const card = cardOf(
+    builders.safetyMarkedFrame({
+      to: QUEUE_TO,
+      markedFrameUrl: input.markedFrameUrl,
+      advice: input.advice,
+      ifItGetsWorse: input.ifItGetsWorse,
+    }),
+  );
   return {
     kind: "interactive",
-    body: clip(body, BUTTON_BODY_MAX),
+    body: card.body,
     payload: {
-      variant: "safety",
-      buttons: SAFETY_BUTTONS,
-      ...(input.markedFrameUrl ? { header_image_url: input.markedFrameUrl } : {}),
+      // Shown for later, it asks nothing: the store reads safety_text as a finished step.
+      variant: input.ifItGetsWorse ? "safety_text" : "safety",
+      buttons: card.buttons,
+      ...(card.headerImageUrl ? { header_image_url: card.headerImageUrl } : {}),
     },
   };
 }
+
+export const lookingAtMedia = (): ZukkiMessage => text("One moment, I'm looking at what you sent.");
+
+export const mediaAnalysis = (analysis: string): ZukkiMessage => text(analysis);
+
+export const shutOffWontHelp = (): ZukkiMessage =>
+  text("Closing your water valve won't stop this one. Keep clear of any outlets or cables near the water while I find you help.", {
+    variant: "safety_text",
+  });
 
 export const cantFindValve = (): ZukkiMessage =>
   text(
@@ -94,68 +110,66 @@ export const electricalSafety = (): ZukkiMessage =>
 
 // 05
 export function locationRequest(category: Category, options: { waterOff: boolean }): ZukkiMessage {
-  const ask = `share your location so I can find ${someone(category)}.`;
-  const lead = options.waterOff ? `Good, the water is off. Now ${ask}` : capitalize(ask);
   // public.messages needs a payload on every kind but text and media.
   return {
     kind: "location_request",
-    body: `${lead} The business only sees the exact address after you approve a visit.`,
+    body: bodyOf(builders.locationRequest({ to: QUEUE_TO, category, waterOff: options.waterOff })),
     payload: { variant: "location_request" },
   };
 }
 
 export const describeNeed = (category: Category): ZukkiMessage =>
-  text(`Got it, I'll find you ${article(nounFor(category))}. What's going on? You can also send a photo, a video or a voice note.`);
+  text(`Got it, I'll find you ${builders.article(builders.nounFor(category))}. What's going on? You can also send a photo, a video or a voice note.`);
 
 export const askWhatTheyNeed = (): ZukkiMessage =>
   text("Tell me what you need, or send a photo, a video or a voice note.");
 
 // 06
-export const finding = (category: Category): ZukkiMessage => text(`Thanks. I'm finding ${someone(category)}.`);
+export const finding = (category: Category): ZukkiMessage => text(bodyOf(builders.finding({ to: QUEUE_TO, category })));
 
 export const noneNearby = (category: Category, options: { another?: boolean } = {}): ZukkiMessage =>
-  text(`I couldn't find ${someone(category, options)} right now. Message me anytime and I'll look again.`);
-
-export const SUGGEST_BUTTONS = (businessId: string): ReplyButton[] => [
-  { id: `connect:${businessId}`, title: "Connect me" },
-  { id: "another_option", title: "Show another option" },
-];
+  text(`I couldn't find ${builders.someone(category, options)} right now. Message me anytime and I'll look again.`);
 
 // 07. Only lines the business actually has; prices come from its own rules.
 export function suggestion(match: Match, category: Category, options: { afterTimeout?: boolean } = {}): ZukkiMessage {
-  const facts = [
-    match.rating === null ? null : `★ ${match.rating.toFixed(1)}${match.reviews === null ? "" : ` (${match.reviews})`}`,
-    match.distanceKm === null ? null : `${match.distanceKm.toFixed(1)} km`,
-    match.openNow ? "open now" : null,
-  ].filter(Boolean);
-  const prices = [
-    match.visit === null ? null : `Visit: ${money(match.visit, match.currency)}`,
-    match.nightFee === null
-      ? null
-      : `Night fee${match.nightFee.window ? ` (${match.nightFee.window.replace(/\s*-\s*/, "–")})` : ""}: +${money(match.nightFee.amount, match.currency)}`,
-    match.repairFrom === null ? null : `${match.repairLabel ?? "Repair"}: from ${money(match.repairFrom, match.currency)}`,
-    match.etaMinutes === null ? null : `Can arrive: in about ${match.etaMinutes} min`,
-  ].filter(Boolean);
-  const body = [facts.join(" · "), prices.join("\n")].filter(Boolean).join("\n\n") || match.name;
-  const footer = options.afterTimeout
-    ? "Your video and details go with the request"
-    : `Closest ${nounFor(category)} ${match.takesNightJobs ? "taking night jobs" : "open"} right now`;
+  const card = cardOf(
+    builders.suggestBusiness({
+      to: QUEUE_TO,
+      category,
+      match: {
+        businessId: match.businessId,
+        businessName: match.name,
+        rating: match.rating,
+        reviews: match.reviews,
+        distanceKm: match.distanceKm,
+        openNow: match.openNow,
+        visit: match.visit,
+        nightFee: match.nightFee,
+        repairFrom: match.repairFrom,
+        repairLabel: match.repairLabel,
+        etaMinutes: match.etaMinutes,
+        currency: match.currency,
+        takesNightJobs: match.takesNightJobs,
+      },
+      afterTimeout: options.afterTimeout,
+    }),
+  );
   return {
     kind: "interactive",
-    body: clip(body, BUTTON_BODY_MAX),
+    body: card.body,
     payload: {
       variant: "suggest_business",
       business_id: match.businessId,
-      header_text: clip(match.name, HEADER_MAX),
-      footer: clip(footer, FOOTER_MAX),
-      buttons: SUGGEST_BUTTONS(match.businessId),
+      header_text: card.headerText,
+      footer: card.footer,
+      buttons: card.buttons,
     },
   };
 }
 
 // 08
 export const requestSent = (businessName: string, minutes: number): ZukkiMessage =>
-  text(`I sent your request to ${businessName}. They have up to ${minutes} minutes to accept.`);
+  text(bodyOf(builders.requestSent({ to: QUEUE_TO, businessName, acceptMinutes: minutes })));
 
 export const alreadyOffered = (): ZukkiMessage =>
   text("Your request is already with a business. I'll tell you as soon as they answer.");
@@ -165,23 +179,24 @@ export const connectFailed = (): ZukkiMessage =>
 
 // 09 (followed by 07 for the next business)
 export function nextBusiness(businessName: string, reason: "expired" | "declined", notice: string): ZukkiMessage {
-  const why = reason === "expired" ? "didn't answer in time" : "can't take this one";
-  return text(`${businessName} ${why}, so I won't keep you waiting. This business is free now:`, { notice });
+  return text(bodyOf(builders.nextBusiness({ to: QUEUE_TO, businessName, reason })), { notice });
 }
 
 export function noNextBusiness(businessName: string, reason: "expired" | "declined", category: Category | null, notice: string): ZukkiMessage {
-  const why = reason === "expired" ? "didn't answer in time" : "can't take this one";
-  const who = category ? `other ${nounFor(category)}` : "other business";
-  return text(`${businessName} ${why}, and no ${who} is open near you right now. Message me anytime and I'll look again.`, { notice });
+  return text(bodyOf(builders.noNextBusiness({ to: QUEUE_TO, businessName, reason, category })), { notice });
 }
 
 // 10
 export const accepted = (businessName: string, notice: string): ZukkiMessage =>
-  text(`${businessName} accepted. You're now talking with their team. Type *Zukki* anytime to talk to me.`, { notice });
+  text(bodyOf(builders.accepted({ to: QUEUE_TO, businessName })), { notice });
 
 // 15
 export const zukkiIsBack = (businessName: string): ZukkiMessage =>
-  text(`I'm here. Your chat with ${businessName} stays open. What do you need?`);
+  text(bodyOf(builders.zukkiIsBack({ to: QUEUE_TO, businessName })));
+
+// S6: the prompt after a question tap on 12 or 13. Plain text, no payload.
+export const typeYourQuestion = (businessName: string): ZukkiMessage =>
+  text(`Type your question and I'll pass it to ${businessName}.`);
 
 export const mediaFailed = (): ZukkiMessage =>
   text("Sorry, I couldn't open that file. Could you send it again?");
@@ -202,36 +217,29 @@ export type QuoteCopy = {
 };
 
 export function quote(input: QuoteCopy, notice: string): ZukkiMessage {
-  const who = input.technician ?? input.businessName;
-  const lead = input.arrivalWindow ? `${who} · arrives ${input.arrivalWindow}` : who;
-  const lines = input.lines.map((line) => `${line.label}: ${moneyRange(line.min, line.max, input.currency)}`);
-  const payTo = input.technician ? input.technician.split(/\s+/)[0] : input.businessName;
-  const body = [
-    lead,
-    [...lines, `*Estimated total: ${moneyRange(input.totalMin, input.totalMax, input.currency)}*`].join("\n"),
-    `You pay ${payTo} after the repair.`,
-  ].join("\n\n");
+  const card = cardOf(
+    builders.quote({
+      to: QUEUE_TO,
+      quoteId: input.quoteId,
+      businessName: input.businessName,
+      technician: input.technician,
+      arrivalWindow: input.arrivalWindow,
+      lines: input.lines,
+      totalMin: input.totalMin,
+      totalMax: input.totalMax,
+      currency: input.currency,
+    }),
+  );
   return {
     kind: "interactive",
-    body: clip(body, BUTTON_BODY_MAX),
+    body: card.body,
     payload: {
       variant: "quote",
       notice,
       quote_id: input.quoteId,
-      header_text: clip(`Quote from ${input.businessName}`, HEADER_MAX),
-      footer: "Nothing is booked until you approve",
-      buttons: [
-        { id: `quote_approve:${input.quoteId}`, title: "Approve visit" },
-        { id: `quote_question:${input.quoteId}`, title: "Ask a question" },
-      ],
+      header_text: card.headerText,
+      footer: card.footer,
+      buttons: card.buttons,
     },
   };
-}
-
-function article(noun: string): string {
-  return /^[aeiou]/i.test(noun) ? `an ${noun}` : `a ${noun}`;
-}
-
-function capitalize(value: string): string {
-  return value.charAt(0).toUpperCase() + value.slice(1);
 }

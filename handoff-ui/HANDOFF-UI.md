@@ -4,7 +4,7 @@ Everything needed to build both sides of Zukki's UI. Hand this folder to the cod
 
 | Surface | Who | Built with | Brief |
 |---|---|---|---|
-| **Zukki on WhatsApp** | Customers | WhatsApp Cloud API messages (no app) | `whatsapp/MESSAGES.md` + `whatsapp/payloads/*.json` |
+| **Zukki on WhatsApp** | Customers | WhatsApp Cloud API messages (no app) | `whatsapp/MESSAGES.md` + the builders in `packages/whatsapp/src/payloads/` |
 | **Zukki for Business** | Business owners | Expo (SDK 58) native shell + **Astryx** components in Expo DOM components | `owner-app/HANDOFF-RN-UI.md` |
 
 Product context, rules and architecture are in `docs/`: `01-PRODUCT.md`, `02-HANDOFF.md`, `03-ARCHITECTURE.md`. The decisions from Oct 27 are in `01-PRODUCT.md`, under "Decisions".
@@ -74,7 +74,7 @@ Alternative and edge paths:
    - the business sees only an approximate area until the customer approves a visit;
    - one business never sees another's customers, chats or drafts;
    - Test Zukki answers only from the signed-in business's data.
-8. **Demo numbers** (identical everywhere): Ana L., Northside Plumbing (4.9, 128 reviews, 1.2 km), visit $45, night fee +$25, repair $60–90, total $130–160, arrival 12:55–1:25 AM, countdown 4:32. They're all in `owner-app/starter/mock.ts` and the payload notes.
+8. **Demo numbers** (identical everywhere): Ana L., Northside Plumbing (4.9, 128 reviews, 1.2 km), visit $45, night fee +$25, repair $60–90, total $130–160, arrival 12:55–1:25 AM, countdown 4:32. They're all in `apps/owner/shared/data/mock.ts` and the payload builders.
 
 ---
 
@@ -84,7 +84,6 @@ Alternative and edge paths:
 HANDOFF-UI.md                this file
 whatsapp/
   MESSAGES.md                rules, catalog in order, reply routing
-  payloads/                  15 ready-to-send Cloud API bodies + _index.json
   screens/                   9 customer screens (2×)
 owner-app/
   HANDOFF-RN-UI.md           stack, architecture, Astryx mapping, navigation, every screen and state
@@ -119,7 +118,7 @@ docs/
 
 - [ ] The demo path runs on a real Android phone and an iPhone, WhatsApp + app, with no dead ends.
 - [ ] Every customer message is one of the 15 payloads (or a media message) and passes the documented limits.
-- [ ] Every owner screen in `owner-app/design/screens` exists and matches its HTML for copy and layout, built with Astryx components.
+- [x] Every owner screen exists in `apps/owner`, matched its HTML for copy and layout, built with Astryx components (the HTML/PNG pairs are retired).
 - [ ] The accept windows (5 min urgent / 30 min other) expire correctly, and the next business is offered.
 - [ ] Option A and option B both work, and the customer sees the right sender line and footer.
 - [ ] Off-topic questions get `14`; no general chat.

@@ -14,12 +14,13 @@ export type ThreadMessage = Message & { deliveryLabel: string | null; quoteCard:
 export type ChatView = {
   customerName: string;
   customerFirstName: string;
-  acceptedAt: string | null; // ISO instant of the first thread message; null while the thread is empty
+  acceptedAt: string | null; // when the business accepted; the demo uses its first thread message; null while unknown
   thread: ThreadMessage[];
   step: ComposerStep;
   preview: PolishPreview | null; // set only while step is "comparing"
   jobId: string | null; // the job "View job and evidence" opens; null when the conversation has none
   suggestedQuoteText: string | null; // "$130–160" for the SuggestionRow; null when Zukki suggests nothing or the quote was sent
+  canSendQuote: boolean; // the chat has a job and no quote was sent yet: the quote entry shows, with or without a suggestion
   polishEnabled: boolean;
   polishFailed: boolean;
   sendFailed: boolean;

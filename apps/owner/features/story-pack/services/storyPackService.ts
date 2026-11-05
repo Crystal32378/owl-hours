@@ -18,6 +18,7 @@ import {
 import { storyPackServiceCopys as copy } from "../copys/storyPackServiceCopys.ts";
 
 export type StoryPackPatch = {
+  expectedUpdatedAt?: string;
   caption?: string;
   slides?: StorySlide[];
   platforms?: StoryTargets;
@@ -27,7 +28,7 @@ export type StoryPackClient = {
   listPacks(): Promise<StoryPack[]>;
   findPack(id: string): Promise<StoryPack | null>;
   create(pack: StoryPack): Promise<StoryPack>;
-  update(pack: StoryPack): Promise<StoryPack>;
+  update(pack: StoryPack, expectedUpdatedAt?: string): Promise<StoryPack>;
   review(id: string, snapshot: StoryPackApprovalSnapshot): Promise<StoryPack>;
   handoff(id: string): Promise<StoryHandoff>;
   listPhotoJobs(): Promise<StoryPhotoJob[]>;
@@ -82,15 +83,17 @@ export function createStoryPackService(
     async updateDraft(id, patch) {
       const current = await requirePack(id);
       if (current.status !== "draft") throw new Error(copy.draftOnlyEdit);
+      const { expectedUpdatedAt = current.updatedAt, ...fields } = patch;
+      if (current.updatedAt !== expectedUpdatedAt) throw new Error(copy.changedSinceReview);
       const next: StoryPack = {
         ...current,
-        ...patch,
+        ...fields,
         slides: patch.slides?.map((slide) => ({ ...slide })) ?? current.slides,
         platforms: { ...(patch.platforms ?? current.platforms) },
         updatedAt: now(),
       };
       validatePackCopy(next);
-      return client.update(next);
+      return client.update(next, expectedUpdatedAt);
     },
     async approve(id, snapshot) {
       const current = await requirePack(id);
@@ -214,7 +217,8 @@ export function createFakeStoryPackClient(): StoryPackClient {
       packs.push(structuredClone(pack));
       return structuredClone(pack);
     },
-    update: async (pack) => {
+    update: async (pack, expectedUpdatedAt) => {
+      if (expectedUpdatedAt !== undefined && find(pack.id).updatedAt !== expectedUpdatedAt) throw new Error(copy.changedSinceReview);
       Object.assign(find(pack.id), structuredClone(pack));
       return structuredClone(pack);
     },

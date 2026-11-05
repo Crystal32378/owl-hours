@@ -1,0 +1,20 @@
+{
+  "implementation_commit": "405d12b",
+  "main_baseline": "6af6cad",
+  "mode": "explicit synthetic demo",
+  "surface": "real browser, 507x841 CSS screenshot pixels; not a physical device",
+  "files": [
+    {
+      "file": "01-deletion-scope.jpg",
+      "sha256": "02ac7fb5d3911d7fdbe8bf90c802a22e71a726427d1b9884d98aaa0af555fefc"
+    },
+    {
+      "file": "02-unsaved-discard.jpg",
+      "sha256": "bee26bce67e3acb5982a6941269440bebd6746871e09436f53bbf39a4d94fed0"
+    },
+    {
+      "file": "03-approved-export.jpg",
+      "sha256": "224e5be0c1f009bf9301467b2b9162003f3364af234b50eda0a1f129e78d7a2e"
+    }
+  ]
+}

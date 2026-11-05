@@ -3,6 +3,7 @@ import type { StoryPack } from './storyPack.ts';
 export type StoryPackEditorState = {
   saved: StoryPack | null;
   draft: StoryPack | null;
+  writeVersion?: string | undefined;
 };
 
 function editableCopy(pack: StoryPack | null): string | null {
@@ -16,8 +17,10 @@ function editableCopy(pack: StoryPack | null): string | null {
   });
 }
 
-export function acceptEditorSave(saved: StoryPack | null): StoryPackEditorState {
-  return { saved, draft: saved };
+export function acceptEditorSave(
+  saved: StoryPack | null,
+): StoryPackEditorState {
+  return { saved, draft: saved, writeVersion: saved?.updatedAt };
 }
 
 export function reconcileEditor(
@@ -32,6 +35,10 @@ export function reconcileEditor(
   if (dirty && state.draft) {
     return {
       saved: selected,
+      writeVersion:
+        editableCopy(state.draft) === editableCopy(selected)
+          ? selected.updatedAt
+          : (state.writeVersion ?? state.saved?.updatedAt),
       draft: {
         ...selected,
         caption: state.draft.caption,
@@ -64,7 +71,16 @@ export function applyEditorSave(
   }
   return {
     saved,
-    draft: editorMatchesSubmission(state, submitted) ? saved : state.draft,
+    writeVersion: saved.updatedAt,
+    draft:
+      editorMatchesSubmission(state, submitted) || !state.draft
+        ? saved
+        : {
+            ...saved,
+            caption: state.draft.caption,
+            slides: state.draft.slides,
+            platforms: state.draft.platforms,
+          },
   };
 }
 

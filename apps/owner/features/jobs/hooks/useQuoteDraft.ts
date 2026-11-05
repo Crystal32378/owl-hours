@@ -1,10 +1,12 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { ID, QuoteLine } from "../../../shared/data/types.ts";
 import { arrivalWindowText } from "../../../shared/lib/arrivalWindow.ts";
 import { firstName } from "../../../shared/lib/firstName.ts";
+import { afterFailedLoad } from "../../../shared/lib/loadState.ts";
+import type { LoadState } from "../../../shared/lib/loadState.ts";
 import { buildQuote } from "../lib/quoteEditing.ts";
 import type { JobsService, QuoteDraft } from "../services/jobsService.ts";
-import { sharedDemoJobsService } from "./demoJobsService.ts";
+import { jobsRuntime } from "./jobsRuntime.ts";
 
 export type QuoteDraftDeps = { service: JobsService };
 
@@ -21,26 +23,37 @@ export type QuoteDraftView = {
   send: (lines: QuoteLine[]) => Promise<boolean>;
 };
 
-// Returns null while the draft loads, or when the conversation has no job to quote.
+// "loading" also covers a conversation with no job to quote; "failed" draws the error state and retries.
+export type QuoteDraftScreen = { status: "loading" } | { status: "failed"; retry: () => Promise<void> } | ({ status: "ready" } & QuoteDraftView);
+
 // Pass a stable service (a module constant or memoized): changing it reloads the draft.
-export function useQuoteDraft(conversationId: ID, deps?: Partial<QuoteDraftDeps>): QuoteDraftView | null {
-  const [defaults] = useState(createDemoDeps);
+export function useQuoteDraft(conversationId: ID, deps?: Partial<QuoteDraftDeps>): QuoteDraftScreen {
+  const [defaults] = useState(createDefaultDeps);
   const service = deps?.service ?? defaults.service;
-  const [draft, setDraft] = useState<QuoteDraft | null>(null);
+  const [draft, setDraft] = useState<LoadState<QuoteDraft | null>>("loading");
+  const [reloadToken, setReloadToken] = useState(0);
+  const reload = useCallback(() => setReloadToken((token) => token + 1), []);
 
   useEffect(() => {
     let isCurrent = true;
-    service.getQuoteDraft(conversationId).then((loaded) => {
-      if (isCurrent) setDraft(loaded);
-    });
+    service
+      .getQuoteDraft(conversationId)
+      .then((loaded) => {
+        if (isCurrent) setDraft(loaded);
+      })
+      .catch(() => {
+        if (isCurrent) setDraft(afterFailedLoad);
+      });
     return () => {
       isCurrent = false;
     };
-  }, [service, conversationId]);
+  }, [service, conversationId, reloadToken]);
 
-  if (!draft) return null;
+  if (draft === "failed") return { status: "failed", retry: async () => reload() };
+  if (draft === "loading" || draft === null) return { status: "loading" };
 
   return {
+    status: "ready",
     title: draft.title,
     customerName: draft.customerName,
     customerFirstName: firstName(draft.customerName),
@@ -61,6 +74,7 @@ async function sendQuote(service: JobsService, conversationId: ID, draft: QuoteD
   }
 }
 
-function createDemoDeps(): QuoteDraftDeps {
-  return { service: sharedDemoJobsService() };
+// The live API when configured, the demo otherwise (S7).
+function createDefaultDeps(): QuoteDraftDeps {
+  return { service: jobsRuntime().service };
 }

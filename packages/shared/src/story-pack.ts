@@ -34,7 +34,8 @@ export const storyPackCreateSchema = z.object({
 export const storyPackUpdateSchema = storyPackCreateSchema
   .pick({ title: true, caption: true, slides: true, platforms: true })
   .partial()
-  .refine((input) => Object.keys(input).length > 0, "provide at least one draft field");
+  .extend({ expectedUpdatedAt: z.string().datetime({ offset: true }) })
+  .refine((input) => Object.keys(input).some((key) => key !== "expectedUpdatedAt"), "provide at least one draft field");
 
 export const storyPackDraftSchema = z.object({
   id: z.string().uuid(),

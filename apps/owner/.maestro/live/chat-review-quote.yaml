@@ -1,0 +1,18 @@
+# From the open chat: Zukki's suggestion row opens the quote seeded with the suggested range; send it.
+appId: host.exp.Exponent
+---
+- extendedWaitUntil:
+    visible: "Zukki suggests sending the quote:.*"
+    timeout: 30000
+- takeScreenshot: live-04-suggestion
+- tapOn: "Review"
+- extendedWaitUntil:
+    visible: "Send a quote"
+    timeout: 30000
+- takeScreenshot: live-05-quote
+- tapOn: "Send quote"
+- runFlow: ../subflows/dismiss-logbox.yaml
+- extendedWaitUntil:
+    notVisible: "Send a quote"
+    timeout: 30000
+- takeScreenshot: live-06-after-quote

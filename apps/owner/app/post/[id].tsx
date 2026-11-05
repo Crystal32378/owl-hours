@@ -5,6 +5,8 @@ import * as Haptics from 'expo-haptics';
 import ContentLoadError from '../../features/content/components/ContentLoadError';
 import PostReviewScreen from '../../features/content/components/PostReviewScreen';
 import { usePostReview } from '../../features/content/hooks/usePostReview';
+import LoadingSkeleton from '../../shared/shell/LoadingSkeleton';
+import { goBackOr } from '../../shared/lib/goBack';
 
 export default function PostReviewRoute() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -17,7 +19,7 @@ export default function PostReviewRoute() {
   }
 
   if (postReview.status !== 'ready') {
-    return null;
+    return <LoadingSkeleton />;
   }
 
   const { view } = postReview;
@@ -33,14 +35,18 @@ export default function PostReviewRoute() {
       scheduledWhenText={view.scheduledWhenText}
       jobPhotos={view.jobPhotos}
       canApprove={view.canApprove}
+      canRegenerate={view.canRegenerate}
+      isPosting={view.isPosting}
+      approveError={view.approveError}
       insets={safeInsets}
       onBack={async () => {
-        router.back();
+        goBackOr(router, '/(tabs)/content');
       }}
       onEditToggle={view.onToggleEditCaption}
       onCaptionChange={view.onSetCaption}
       onTargetToggle={view.onToggleTarget}
       onApprove={async () => {
+        // Published only after the API confirms; a failure stays here with the API's message.
         const approved = await view.onApprove();
         if (approved) {
           await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);

@@ -146,3 +146,13 @@ describe("S6: Story Pack existing schema contracts hold", () => {
     assert.equal(storyPackReviewSchema.safeParse(validApproval).success, true);
   });
 });
+
+describe("Story Pack optimistic update contract", () => {
+  it("requires a displayed version plus at least one editable field", async () => {
+    const { storyPackUpdateSchema } = await import("../src/story-pack.ts");
+    const expectedUpdatedAt = "2026-10-31T00:00:00.000Z";
+    assert.equal(storyPackUpdateSchema.safeParse({ expectedUpdatedAt, caption: "Edited" }).success, true);
+    assert.equal(storyPackUpdateSchema.safeParse({ caption: "Edited" }).success, false);
+    assert.equal(storyPackUpdateSchema.safeParse({ expectedUpdatedAt }).success, false);
+  });
+});

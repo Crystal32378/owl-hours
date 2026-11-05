@@ -2,11 +2,37 @@
   "name": "Zukki Owner",
   "slug": "zukki-owner",
   "scheme": "zukki-owner",
+  "ios": {
+    "bundleIdentifier": "com.owlhours.zukki.owner"
+  },
+  "android": {
+    "package": "com.owlhours.zukki.owner"
+  },
   "web": {
     "bundler": "metro"
   },
   "plugins": [
     "expo-secure-store",
-    "expo-notifications"
-  ]
+    "expo-notifications",
+    [
+      "expo-location",
+      {
+        "locationWhenInUsePermission": "Zukki uses your location to place your business on the map, so customers nearby can find you."
+      }
+    ],
+    "expo-web-browser"
+  ],
+  "extra": {
+    "eas": {
+      "projectId": "751b79b6-63f8-4e74-a817-b2887933a68a"
+    }
+  },
+  "owner": "carlglzm",
+  "runtimeVersion": {
+    "policy": "fingerprint"
+  },
+  "updates": {
+    "url": "https://u.expo.dev/751b79b6-63f8-4e74-a817-b2887933a68a"
+  },
+  "userInterfaceStyle": "automatic"
 }

@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: done
 ---
 
 # Build the owner UI from the handoff (delegated, test-first)
@@ -541,3 +541,11 @@ slice, delegated with test-first discipline.
   `feat/owner-jobs-list`, stacked on #30; 788dade + f371561 + docs) with the
   before (flow 08) and after (flow 11) screenshots inline. After #30 merges,
   retarget #57 to `main`. Next: the L37 gap (error state for a rejected load).
+
+- L50 (user, 2026-10-31): "continúa el goal anterior". The L37 gap closed on
+  `fix/live-owner-debt` (4dd750f): a rejected first load of the job detail or
+  the quote modal draws `JobsLoadError` (owl, "Something went wrong.", Try
+  again); a rejected reload keeps the screen (`shared/lib/loadState.ts`, also
+  used by the Chats list). Owner `npm test` 970/970, tsc clean, web export OK.
+  T3–T6 are on main (#23–#25, #30, #57). Feature done. Next objective: 7 (UI
+  close-out); 6 (WhatsApp payloads) is in review as #77 → #73–#76 → #78.

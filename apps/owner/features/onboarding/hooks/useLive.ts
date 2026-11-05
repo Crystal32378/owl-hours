@@ -1,7 +1,7 @@
 // Live: the business name, category and radius the earlier steps saved.
 import { useEffect, useState } from "react";
-import { demoOnboardingService } from "../services/onboardingService.ts";
 import type { OnboardingService } from "../services/onboardingService.ts";
+import { useOnboardingService } from "./useOnboardingService.ts";
 
 export type LiveDeps = { service: OnboardingService };
 
@@ -13,8 +13,8 @@ export type Live =
   | { status: "ready"; view: LiveView };
 
 export function useLive(deps?: Partial<LiveDeps>): Live {
-  const [defaults] = useState(createDemoDeps);
-  const service = deps?.service ?? defaults.service;
+  const configured = useOnboardingService();
+  const service = deps?.service ?? configured;
 
   const [view, setView] = useState<LiveView | null>(null);
   const [failed, setFailed] = useState(false);
@@ -45,8 +45,4 @@ export function useLive(deps?: Partial<LiveDeps>): Live {
   async function relaunch(): Promise<void> {
     setAttempt((count) => count + 1);
   }
-}
-
-function createDemoDeps(): LiveDeps {
-  return { service: demoOnboardingService };
 }

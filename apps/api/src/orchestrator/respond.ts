@@ -4,6 +4,7 @@
 // Messages are queued in the outbox, which sends them in order.
 import { textPart, type ContentPart } from "@owl-hours/meta-models";
 import { HOME_EMERGENCY_CATEGORIES, categoryFromListReply, type Category } from "@owl-hours/shared";
+import { isQuestionTap, nounFor } from "@owl-hours/whatsapp";
 import { errorText } from "../whatsapp/inbound.ts";
 import * as copy from "./copy.ts";
 import type { ConversationFacts, RespondDeps, Turn, TurnContext, Understanding, ZukkiMessage } from "./types.ts";
@@ -50,14 +51,32 @@ type Queue = (message: ZukkiMessage, tenantId?: string | null) => Promise<void>;
 
 // Product rule 6: the owner talks; Zukki answers only to its name.
 async function inBusinessChat(deps: RespondDeps, _ctx: TurnContext, turn: Turn, businessId: string, queue: Queue) {
-  if (turn.kind === "text" && ZUKKI_WORD.test(turn.text)) {
-    const name = (await deps.store.businessName(businessId)) ?? "the business";
-    await queue(copy.zukkiIsBack(name), businessId);
+  if (turn.kind === "button") {
+    await onBusinessButton(deps, turn.id, businessId, queue);
+    return;
   }
+  if (turn.kind === "text" && ZUKKI_WORD.test(turn.text)) {
+    await queue(copy.zukkiIsBack(await businessDisplayName(deps, businessId)), businessId);
+  }
+}
+
+// S6: a question tap asks the customer to type the question for the
+// business; reply_ok and anything else queues nothing to the customer.
+async function onBusinessButton(deps: RespondDeps, id: string, businessId: string, queue: Queue): Promise<void> {
+  if (!isQuestionTap(id)) return;
+  await queue(copy.typeYourQuestion(await businessDisplayName(deps, businessId)), businessId);
+}
+
+async function businessDisplayName(deps: RespondDeps, businessId: string): Promise<string> {
+  return (await deps.store.businessName(businessId)) ?? "the business";
 }
 
 async function onButton(deps: RespondDeps, ctx: TurnContext, id: string, queue: Queue) {
   const facts = await deps.store.facts(ctx.conversationId);
+  if (id === "safety_got_it") {
+    if (!facts.locationAsked) await queue(copy.locationRequest(facts.category ?? "plumbing", { waterOff: false }));
+    return;
+  }
   if (id === "safety_done" || id === "safety_cant_find") {
     if (id === "safety_cant_find") await queue(copy.cantFindValve());
     await queue(copy.locationRequest(facts.category ?? "plumbing", { waterOff: id === "safety_done" }));
@@ -80,7 +99,7 @@ async function onButton(deps: RespondDeps, ctx: TurnContext, id: string, queue: 
     await connect(deps, ctx, facts, businessId, queue);
     return;
   }
-  // reply_ok, quote_question and the rest are for the owner's chat.
+  // reply_ok, reply_question, quote_question and the rest are for the owner's chat.
   deps.log.info(`zukki: no step for button ${id} in ${ctx.conversationId}`);
 }
 
@@ -131,16 +150,23 @@ async function onMessage(deps: RespondDeps, ctx: TurnContext, turn: Extract<Turn
   let parts: ContentPart[];
   let markedFrameUrl: string | null = null;
   let valveAdvice: string | null = null;
+  let shutOffWontHelp = false;
+  let analysis: string | null = null;
+  let serious = false;
   if (turn.kind === "media") {
     const findValve = facts.category === null || facts.category === "plumbing";
+    // Reading a video takes up to a minute, longer than WhatsApp's typing indicator lasts.
+    if (turn.mediaType !== "audio") await queue(copy.lookingAtMedia());
     const reading = await deps.readMedia({ conversationId: ctx.conversationId, mediaId: turn.mediaId, mediaType: turn.mediaType, caption: turn.caption, findValve });
     if (reading.transcript) await deps.store.saveTranscript(turn.mediaId, reading.transcript);
-    ({ parts, markedFrameUrl, valveAdvice } = reading);
+    ({ parts, markedFrameUrl, valveAdvice, shutOffWontHelp, analysis, serious } = reading);
   } else {
     parts = [textPart(turn.text)];
   }
 
   const understanding = await understandOrFallback(deps, history, parts, facts);
+  // Sent before the checks below, so a reading rated urgent survives an unknown category.
+  if (analysis && understanding?.onTopic !== false) await queue(copy.mediaAnalysis(analysis));
   if (!understanding) {
     await queue(copy.categoryList());
     return;
@@ -149,23 +175,36 @@ async function onMessage(deps: RespondDeps, ctx: TurnContext, turn: Extract<Turn
     await queue(copy.offTopic());
     return;
   }
-  const category = facts.category ?? understanding.category;
+  // While Zukki still has the chat, a customer who asks for something else gets the new category.
+  const switched =
+    facts.state === "with_zukki" && facts.category !== null && understanding.category !== null && understanding.category !== facts.category;
+  const known = switched ? null : facts.category;
+  const category = known ?? understanding.category;
   if (!category) {
     await queue(copy.categoryList());
     return;
   }
-  const urgent = facts.category ? facts.urgency === "now" : understanding.urgent;
-  if (!facts.category) {
+  const urgent = serious || (known ? facts.urgency === "now" : understanding.urgent);
+  // A category picked from the list is saved without a title; the description
+  // that follows names the request the business sees on the offer, once.
+  if (!known || (understanding.title && !facts.hasTitle)) {
     await deps.store.saveNeed(ctx.conversationId, {
       category,
-      urgency: urgent ? "now" : "today",
+      // A switched request takes the new urgency; a known one keeps what was saved.
+      urgency: (known ? facts.urgency : null) ?? (urgent ? "now" : "today"),
       title: understanding.title,
       summary: understanding.summary,
     });
   }
 
-  if (facts.state === "with_zukki" && facts.safety === "none" && urgent) {
-    if (category === "plumbing") {
+  const markedValve = category === "plumbing" && markedFrameUrl !== null;
+  if (facts.state === "with_zukki" && facts.safety === "none" && (urgent || markedValve)) {
+    if (markedValve) {
+      await queue(copy.waterSafety({ markedFrameUrl, advice: valveAdvice, ifItGetsWorse: shutOffWontHelp }));
+      if (!shutOffWontHelp) return;
+    } else if (category === "plumbing" && shutOffWontHelp) {
+      await queue(copy.shutOffWontHelp());
+    } else if (category === "plumbing") {
       await queue(copy.waterSafety({ markedFrameUrl, advice: valveAdvice }));
       return;
     }
@@ -214,5 +253,5 @@ function stepNote(facts: ConversationFacts, category: Category): string {
         : !facts.hasLocation
           ? "Waiting for the customer to share their location with the Send location button. Remind them briefly."
           : "A business card was shown. The customer taps Connect me to send the request.";
-  return `Conversation state: the customer needs a ${copy.nounFor(category)}. ${step}`;
+  return `Conversation state: the customer needs a ${nounFor(category)}. ${step}`;
 }

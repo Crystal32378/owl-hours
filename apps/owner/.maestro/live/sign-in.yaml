@@ -1,0 +1,42 @@
+# Signs the demo owner in on the live stack: sign-up form, emailed code from Mailpit.
+appId: host.exp.Exponent
+env:
+  MAILPIT_URL: http://127.0.0.1:54324
+  OWNER_EMAIL: mario@northside.example
+---
+- launchApp:
+    stopApp: true
+- openLink: "exp://127.0.0.1:8081"
+- extendedWaitUntil:
+    visible: "Create your account"
+    timeout: 120000
+- runScript: clear-mailpit.js
+# The form keeps the last owner's name and email: clear each field before typing.
+- tapOn: "Your name"
+- eraseText: 80
+- inputText: "Mario"
+- tapOn: "Email"
+- eraseText: 80
+- inputText: ${OWNER_EMAIL}
+- tapOn: "Let's set up your account. It takes about 3 minutes."
+- tapOn: "I accept the terms and the privacy policy."
+- tapOn: "Send code"
+- extendedWaitUntil:
+    notVisible: "Create your account"
+    timeout: 30000
+# retry: https://docs.maestro.dev/api-reference/commands/retry (at most 3 retries).
+- retry:
+    maxRetries: 3
+    commands:
+      - runScript: mailpit-code.js
+      - assertTrue:
+          condition: ${output.code}
+          label: Mailpit has the sign-in code
+- tapOn: "Verification code"
+- inputText: ${output.code}
+- tapOn:
+    text: "Verify"
+    optional: true
+- extendedWaitUntil:
+    notVisible: "Enter the code"
+    timeout: 30000

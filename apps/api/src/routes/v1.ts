@@ -1,5 +1,5 @@
 // /v1: the owner app (/v1/owner, Supabase login) and the WhatsApp side
-// (/v1/internal, server key). Request and response shapes: docs/API.md.
+// (/v1/internal, server key), plus the public Facebook Login callback (/v1/meta). Request and response shapes: docs/API.md.
 import { Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -8,7 +8,10 @@ import type { WhatsAppClient } from "@owl-hours/whatsapp";
 import type { Authenticate } from "../http/auth.ts";
 import { clientAddress, rateLimit } from "../http/rate-limit.ts";
 import { HttpError, errorResponse } from "../http/respond.ts";
+import type { MetaDeps } from "../meta/graph.ts";
+import type { Unavailable } from "../v1-live.ts";
 import type { PipelineDeps } from "../worker/process-message.ts";
+import { metaCallbackRoutes } from "./meta-callback.ts";
 import { internalRoutes } from "./v1-internal.ts";
 import { ownerRoutes } from "./v1-owner.ts";
 
@@ -22,6 +25,8 @@ export type V1Deps = {
   pipeline?: PipelineDeps;
   // Cloud API client; absent until the WHATSAPP_* settings are filled in.
   whatsapp?: Pick<WhatsAppClient, "send">;
+  // Facebook Login and Page / Instagram posting; absent until the META_* settings are filled in.
+  meta?: MetaDeps | Unavailable;
   now?: () => number;
 };
 
@@ -40,6 +45,7 @@ export function v1Routes(deps: V1Deps): Hono {
   );
   app.use("*", rateLimit({ limit: 600, windowMs: 60_000, key: (c) => `ip:${clientAddress(c)}`, now: deps.now }));
   app.route("/owner", ownerRoutes(deps));
+  app.route("/meta", metaCallbackRoutes(deps));
   app.route("/internal", internalRoutes(deps));
   return app;
 }

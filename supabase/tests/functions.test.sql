@@ -119,6 +119,45 @@ begin
 end $$;
 rollback;
 
+\echo '# accepting opens the job, so the owner can quote and the customer approve'
+begin;
+set local role authenticated;
+set local request.jwt.claims to :'eastside';
+do $$
+declare
+  h public.handoffs;
+  j public.jobs;
+  q public.quotes;
+begin
+  h := public.accept_handoff('50000000-0000-4000-8000-000000000002');
+  select * into j from public.jobs where handoff_id = h.id;
+  assert found, 'no job after accept';
+  assert j.state = 'proposed', 'job state was ' || j.state;
+  assert j.tenant_id = h.tenant_id and j.conversation_id = h.conversation_id, 'job belongs to the offer';
+  assert char_length(j.title) between 1 and 120, 'job has a title';
+  assert (select count(*) from public.job_events where job_id = j.id and to_state = 'proposed' and actor = 'owner') = 1,
+    'job opening logged';
+  q := public.send_quote(j.id, '[{"label": "Visit", "min": 40, "max": 40}]'::jsonb, now() + interval '30 minutes',
+                         now() + interval '60 minutes');
+  assert (select state from public.jobs where id = j.id) = 'owner_confirmed', 'quote moves the job on';
+  perform set_config('role', 'service_role', true);
+  perform public.approve_quote(q.id);
+  assert (select state from public.jobs where id = j.id) = 'customer_approved', 'customer approved';
+end $$;
+rollback;
+
+\echo '# a late accept opens no job'
+begin;
+update public.handoffs set offered_at = now() - interval '40 minutes', expires_at = now() - interval '10 minutes'
+where id = '50000000-0000-4000-8000-000000000002';
+set local role authenticated;
+set local request.jwt.claims to :'eastside';
+do $$ begin
+  perform public.accept_handoff('50000000-0000-4000-8000-000000000002');
+  assert not exists (select 1 from public.jobs where handoff_id = '50000000-0000-4000-8000-000000000002'), 'expired offer opened a job';
+end $$;
+rollback;
+
 \echo '# an owner cannot accept another business''s handoff'
 begin;
 set local role authenticated;
@@ -227,12 +266,12 @@ begin
   assert (select count(*) from public.job_events where job_id = j.id and actor = 'customer' and from_state = 'proposed') = 1,
     'customer move logged';
   begin
-    perform public.record_job_transition(j.id, 'proposed', 'triaged', 'agent', 'stale read');
+    perform public.record_job_transition(j.id, 'proposed', 'cancelled', 'system', 'stale read');
     raise exception 'a stale from_state was applied';
   exception when serialization_failure then null;
   end;
   begin
-    perform public.record_job_transition('80000000-0000-4000-8000-0000000000ff', 'proposed', 'triaged', 'agent', 'x');
+    perform public.record_job_transition('80000000-0000-4000-8000-0000000000ff', 'proposed', 'cancelled', 'system', 'x');
     raise exception 'missing job was moved';
   exception when no_data_found then null;
   end;
@@ -241,6 +280,42 @@ begin
     raise exception 'owner moves must use owner_transition_job';
   exception when sqlstate '22023' then null;
   end;
+end $$;
+rollback;
+
+\echo '# agent, customer and system moves follow the job rules (no skipped confirmations)'
+begin;
+set local role service_role;
+do $$
+declare
+  bad record;
+begin
+  -- The seed job is 'proposed': only the owner's quote may move it to owner_confirmed,
+  -- and only the customer may approve after that.
+  for bad in
+    select * from (values
+      ('proposed'::public.job_state, 'customer_approved'::public.job_state, 'customer'::public.job_actor),
+      ('proposed', 'customer_approved', 'system'),
+      ('proposed', 'owner_confirmed', 'agent'),
+      ('proposed', 'owner_confirmed', 'system'),
+      ('proposed', 'done', 'system'),
+      ('proposed', 'cancelled', 'agent')
+    ) as v(from_state, to_state, actor)
+  loop
+    begin
+      perform public.record_job_transition('80000000-0000-4000-8000-000000000001', bad.from_state, bad.to_state,
+                                           bad.actor, 'should be refused');
+      raise exception 'allowed % -> % as %', bad.from_state, bad.to_state, bad.actor;
+    exception when sqlstate '22023' then null;
+    end;
+  end loop;
+  assert (select state from public.jobs where id = '80000000-0000-4000-8000-000000000001') = 'proposed', 'job unchanged';
+  -- The SQL table matches packages/shared/src/job-states.ts on a sample of allowed moves.
+  assert private.job_move_allowed('requested', 'triaged', 'agent'), 'agent triages';
+  assert private.job_move_allowed('owner_confirmed', 'customer_approved', 'customer'), 'customer approves';
+  assert private.job_move_allowed('on_site', 'done', 'system'), 'system closes';
+  assert not private.job_move_allowed('on_site', 'cancelled', 'customer'), 'no cancel on site';
+  assert not private.job_move_allowed('done', 'cancelled', 'system'), 'done is final';
 end $$;
 rollback;
 
@@ -595,6 +670,59 @@ begin
 end $$;
 rollback;
 
+\echo '# outbox: passing failures are retried with backoff, then marked failed'
+begin;
+set local role authenticated;
+set local request.jwt.claims to :'mario';
+insert into public.messages (conversation_id, tenant_id, sender, author_user_id, body)
+values ('40000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000001', 'owner',
+        '20000000-0000-4000-8000-000000000001', 'On my way');
+reset role;
+set local role service_role;
+do $$
+declare claimed jsonb; m public.messages; msg_id uuid; i integer;
+begin
+  claimed := public.claim_outbox(10);
+  msg_id := (claimed -> 0 ->> 'id')::uuid;
+  assert (claimed -> 0 ->> 'attempt')::int = 1, 'first attempt';
+  m := public.record_outbound_result(msg_id, null, true);
+  assert m.delivery = 'queued' and m.next_send_at > now(), 'queued again with a delay';
+  assert jsonb_array_length(public.claim_outbox(10)) = 0, 'not before the delay';
+  for i in 2..5 loop
+    update public.messages set next_send_at = now() - interval '1 second' where id = msg_id;
+    claimed := public.claim_outbox(10);
+    assert (claimed -> 0 ->> 'attempt')::int = i, 'attempt ' || i;
+    m := public.record_outbound_result(msg_id, null, true);
+  end loop;
+  assert m.delivery = 'failed' and m.next_send_at is null, 'gives up after 5 tries';
+end $$;
+rollback;
+
+\echo '# outbox: a final failure is not retried, a stuck send is claimed again'
+begin;
+set local role authenticated;
+set local request.jwt.claims to :'mario';
+insert into public.messages (conversation_id, tenant_id, sender, author_user_id, body)
+values ('40000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000001', 'owner',
+        '20000000-0000-4000-8000-000000000001', 'Bad number'),
+       ('40000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000001', 'owner',
+        '20000000-0000-4000-8000-000000000001', 'Lost mid-send');
+reset role;
+set local role service_role;
+do $$
+declare claimed jsonb; bad uuid; lost uuid;
+begin
+  claimed := public.claim_outbox(10);
+  bad := (select (e ->> 'id')::uuid from jsonb_array_elements(claimed) e where e ->> 'body' = 'Bad number');
+  lost := (select (e ->> 'id')::uuid from jsonb_array_elements(claimed) e where e ->> 'body' = 'Lost mid-send');
+  assert (public.record_outbound_result(bad, null)).delivery = 'failed', 'no retry for a final error';
+  assert jsonb_array_length(public.claim_outbox(10)) = 0, 'the lost send is not reclaimed at once';
+  update public.messages set claimed_at = now() - interval '6 minutes' where id = lost;
+  claimed := public.claim_outbox(10);
+  assert jsonb_array_length(claimed) = 1 and (claimed -> 0 ->> 'id')::uuid = lost, 'stuck send claimed again';
+end $$;
+rollback;
+
 \echo '# owner screens read through row-level security'
 begin;
 set local role authenticated;
@@ -606,6 +734,9 @@ begin
   assert jsonb_array_length(offers) = 1 and offers -> 0 ->> 'customerName' = 'Pedro M.', 'Eastside sees Pedro''s request';
   assert not (offers::text like '%15550000002%'), 'no phone number in the offer';
   assert jsonb_array_length(public.owner_offers('accepted')) = 0, 'not Northside''s accepted request';
+  assert public.owner_offer((offers -> 0 ->> 'id')::uuid) ->> 'customerName' = 'Pedro M.', 'one offer by id';
+  assert public.owner_offer('50000000-0000-4000-8000-000000000001') is null, 'Northside''s offer is hidden by id too';
+  assert public.owner_offer('50000000-0000-4000-8000-0000000000ff') is null, 'unknown offer is null';
   assert jsonb_array_length(public.owner_jobs()) = 0, 'no other business''s jobs';
   begin
     perform public.owner_conversation_messages('40000000-0000-4000-8000-000000000001');
@@ -625,6 +756,7 @@ begin
   offers := public.owner_offers('accepted');
   assert offers -> 0 ->> 'distanceKm' = '1.2' and offers -> 0 -> 'suggestedQuote' ->> 'min' = '130';
   assert jsonb_array_length(offers -> 0 -> 'media') = 1, 'the video, not the voice note';
+  assert offers -> 0 ->> 'approxLocation' is not null, 'approximate location falls back to the distance';
   chats := public.owner_conversations();
   assert jsonb_array_length(chats) = 1 and chats -> 0 ->> 'title' = 'Toilet won''t stop running';
   assert (chats -> 0 ->> 'unread')::int = 4, 'unread was ' || (chats -> 0 ->> 'unread');

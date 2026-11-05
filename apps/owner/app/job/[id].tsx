@@ -3,23 +3,29 @@ import { useCallback } from 'react';
 import { useLocalSearchParams, router, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import JobScreen from '../../features/jobs/components/JobScreen';
+import JobsLoadError from '../../features/jobs/components/JobsLoadError';
 import { useJob } from '../../features/jobs/hooks/useJob';
+import LoadingSkeleton from '../../shared/shell/LoadingSkeleton';
+import { goBackOr } from '../../shared/lib/goBack';
 
 export default function JobRoute() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const insets = useSafeAreaInsets();
   const job = useJob(id);
-  const reload = job?.reload;
+  const reload = job.status === 'ready' ? job.reload : undefined;
   useFocusEffect(useCallback(() => { reload?.(); }, [reload]));
-  if (!job) return null;
+  const safeInsets = { top: insets.top, bottom: insets.bottom };
+
+  if (job.status === 'failed') return <JobsLoadError insets={safeInsets} onRetry={job.retry} dom={domHost} />;
+  if (job.status !== 'ready') return <LoadingSkeleton />;
 
   return (
     <JobScreen
       job={job.job}
-      insets={{ top: insets.top, bottom: insets.bottom }}
+      insets={safeInsets}
       onAdvance={job.advance}
       onOpenFinish={async () => router.push(`/job/${id}/finish`)}
-      onBack={async () => router.back()}
+      onBack={async () => goBackOr(router, '/(tabs)/jobs')}
       dom={domHost}
     />
   );

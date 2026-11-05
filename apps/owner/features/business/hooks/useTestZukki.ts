@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { createFakeTestZukkiClient, createTestZukkiSession } from "../services/testZukkiService.ts";
+import { createTestZukkiSession } from "../services/testZukkiService.ts";
 import type { TestZukkiClient, TestZukkiTurn } from "../services/testZukkiService.ts";
+import { businessRuntime } from "./businessRuntime.ts";
 
 export type TestZukkiDeps = { client: TestZukkiClient };
 
@@ -14,7 +15,7 @@ export type TestZukkiView = {
 };
 
 export function useTestZukki(deps?: Partial<TestZukkiDeps>): TestZukkiView {
-  const [session] = useState(() => createTestZukkiSession(deps?.client ?? createFakeTestZukkiClient()));
+  const [session] = useState(() => createTestZukkiSession(deps?.client ?? businessRuntime().createTestZukkiClient()));
   const [snapshot, setSnapshot] = useState(session.getSnapshot);
 
   async function sendQuestion(question: string): Promise<boolean> {

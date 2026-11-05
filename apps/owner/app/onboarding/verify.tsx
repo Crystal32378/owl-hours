@@ -5,6 +5,7 @@ import OnboardingLoadError from '../../features/onboarding/components/Onboarding
 import VerifyScreen from '../../features/onboarding/components/VerifyScreen';
 import { useVerify } from '../../features/onboarding/hooks/useVerify';
 import { resolveNext } from '../../features/onboarding/lib/setupSteps';
+import LoadingSkeleton from '../../shared/shell/LoadingSkeleton';
 
 export default function VerifyRoute() {
   const insets = useSafeAreaInsets();
@@ -14,7 +15,7 @@ export default function VerifyRoute() {
   if (verification.status === 'failed') {
     return <OnboardingLoadError insets={safeInsets} onRetry={verification.retry} dom={domHost} />;
   }
-  if (verification.status !== 'ready') return null;
+  if (verification.status !== 'ready') return <LoadingSkeleton />;
 
   const { view } = verification;
   return (

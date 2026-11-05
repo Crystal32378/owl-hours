@@ -12,4 +12,9 @@ describe("chatsCopys suggestion row", () => {
   it('reviewQuote is "Review"', () => {
     assert.equal(chatsCopys.reviewQuote, "Review");
   });
+
+  // odd/tasks/owner-chat-live-fixes.md S2: without a suggestion the entry reads as the quote modal's title.
+  it("sendAQuote is 'Send a quote', the quote modal's title (jobsCopys.sendAQuote)", () => {
+    assert.equal(chatsCopys.sendAQuote, "Send a quote");
+  });
 });

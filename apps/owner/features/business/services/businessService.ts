@@ -1,44 +1,58 @@
 import { accounts as seedAccounts, business as seedBusiness } from "../../../shared/data/mock.ts";
-import type { Business, LinkedAccount, PriceItem } from "../../../shared/data/types.ts";
-import type { BusinessDemo } from "../lib/businessRows.ts";
+import type { Business, FeeInput, LinkedAccount, PriceItem } from "../../../shared/data/types.ts";
+import type { BusinessRowExtras } from "../lib/businessRows.ts";
 import { BUSINESS_DEMO } from "../lib/businessRows.ts";
+import { isCompleteFee, withSavedFees } from "../lib/feeDraft.ts";
+import { hoursSummary, type OpeningHours } from "../lib/hoursSummary.ts";
 import { isValidPrice } from "../lib/priceValidation.ts";
 
 // The settings switches of OwSettings. Field names are the coder's;
 // the fake client seeds them on, on, on, off (the HTML aria-checked).
+// Only takingRequests has a database column (tenants.accepts_now); the
+// others exist in the demo only, so the live client leaves them out and the
+// screen hides a switch it has no value for.
 export type BusinessSettings = {
   takingRequests: boolean;
-  urgentRequests: boolean;
-  ringOnSilentAtNight: boolean;
-  polishByDefault: boolean;
+  urgentRequests?: boolean;
+  ringOnSilentAtNight?: boolean;
+  polishByDefault?: boolean;
 };
 
 export type BusinessClient = {
   loadBusiness: () => Promise<Business>;
-  storeBusiness: (business: Business) => Promise<void>;
+  storePrices: (prices: PriceItem[]) => Promise<Business>;
+  storeFees: (fees: FeeInput[]) => Promise<Business>;
+  loadHours: () => Promise<OpeningHours[]>;
+  storeHours: (hours: OpeningHours[]) => Promise<OpeningHours[]>;
   loadSettings: () => Promise<BusinessSettings>;
-  storeSettings: (settings: BusinessSettings) => Promise<void>;
+  storeSettings: (settings: BusinessSettings) => Promise<BusinessSettings>;
   loadAccounts: () => Promise<LinkedAccount[]>;
-  loadDemoValues: () => Promise<BusinessDemo>;
+  loadRowExtras: () => Promise<BusinessRowExtras>;
 };
 
 export type BusinessService = {
   getBusiness: () => Promise<Business>;
   savePrices: (prices: PriceItem[]) => Promise<Business | null>;
+  saveFees: (fees: FeeInput[]) => Promise<Business | null>;
+  getHours: () => Promise<OpeningHours[]>;
+  saveHours: (hours: OpeningHours[]) => Promise<OpeningHours[] | null>;
   getSettings: () => Promise<BusinessSettings>;
   saveSettings: (settings: BusinessSettings) => Promise<BusinessSettings>;
   getAccounts: () => Promise<LinkedAccount[]>;
-  getDemoValues: () => Promise<BusinessDemo>;
+  getRowExtras: () => Promise<BusinessRowExtras>;
 };
 
 export function createBusinessService(client: BusinessClient): BusinessService {
   return {
     getBusiness: () => client.loadBusiness(),
     savePrices: (prices) => saveValidPrices(client, prices),
+    saveFees: (fees) => saveCompleteFees(client, fees),
+    getHours: () => client.loadHours(),
+    saveHours: (hours) => saveValidHours(client, hours),
     getSettings: () => client.loadSettings(),
-    saveSettings: (settings) => storeSettings(client, settings),
+    saveSettings: (settings) => client.storeSettings({ ...settings }),
     getAccounts: () => client.loadAccounts(),
-    getDemoValues: () => client.loadDemoValues(),
+    getRowExtras: () => client.loadRowExtras(),
   };
 }
 
@@ -46,15 +60,21 @@ export function createBusinessService(client: BusinessClient): BusinessService {
 async function saveValidPrices(client: BusinessClient, prices: PriceItem[]): Promise<Business | null> {
   if (!prices.every((price) => isValidPrice(price.amount))) return null;
 
-  const updated = { ...(await client.loadBusiness()), prices: structuredClone(prices) };
-  await client.storeBusiness(updated);
-  return updated;
+  return client.storePrices(structuredClone(prices));
 }
 
-async function storeSettings(client: BusinessClient, settings: BusinessSettings): Promise<BusinessSettings> {
-  const saved = { ...settings };
-  await client.storeSettings(saved);
-  return saved;
+// A fee list with a fee left without a name or at $0 saves nothing.
+async function saveCompleteFees(client: BusinessClient, fees: FeeInput[]): Promise<Business | null> {
+  if (!fees.every(isCompleteFee)) return null;
+
+  return client.storeFees(structuredClone(fees));
+}
+
+// PUT /business/hours refuses a shift that opens and closes at the same time.
+async function saveValidHours(client: BusinessClient, hours: OpeningHours[]): Promise<OpeningHours[] | null> {
+  if (hours.some((shift) => shift.opens === shift.closes)) return null;
+
+  return client.storeHours(structuredClone(hours));
 }
 
 // Module-level demo service shared by the default deps of useBusiness,
@@ -67,6 +87,8 @@ export const demoBusinessService: BusinessService = createBusinessService(create
 // accounts and the feature-local demo values; the shared mock is never touched.
 export function createFakeBusinessClient(): BusinessClient {
   let business = structuredClone(seedBusiness);
+  // The shifts behind the seeded "Mon–Sat, 8 AM–8 PM" summary.
+  let hours: OpeningHours[] = [1, 2, 3, 4, 5, 6].map((weekday) => ({ weekday, opens: "08:00", closes: "20:00" }));
   let settings: BusinessSettings = {
     takingRequests: seedBusiness.takingRequests,
     urgentRequests: true,
@@ -78,14 +100,26 @@ export function createFakeBusinessClient(): BusinessClient {
 
   return {
     loadBusiness: async () => structuredClone(business),
-    storeBusiness: async (next) => {
-      business = structuredClone(next);
+    storePrices: async (prices) => {
+      business = { ...business, prices: structuredClone(prices) };
+      return structuredClone(business);
+    },
+    storeFees: async (fees) => {
+      business = { ...business, fees: withSavedFees(business.fees, fees) };
+      return structuredClone(business);
+    },
+    loadHours: async () => structuredClone(hours),
+    storeHours: async (next) => {
+      hours = structuredClone(next);
+      business = { ...business, hours: { ...business.hours, summary: hoursSummary(hours) } };
+      return structuredClone(hours);
     },
     loadSettings: async () => ({ ...settings }),
     storeSettings: async (next) => {
       settings = { ...next };
+      return { ...settings };
     },
     loadAccounts: async () => structuredClone(accounts),
-    loadDemoValues: async () => ({ ...demo }),
+    loadRowExtras: async () => ({ ...demo }),
   };
 }

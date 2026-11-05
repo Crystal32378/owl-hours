@@ -237,7 +237,7 @@ user's JWT, so row-level security is the tenant boundary. `anon` gets nothing.
 | `search_directory(category, lat, lng, at?, exclude?, limit?, max_km?)` | API, app | Businesses accepting now, open or taking night jobs, whose service area covers the point. Closest first, then rating. |
 | `search_directory_for_conversation(conversation_id, category, exclude?)` | API only | Same search from the customer's latest shared location, so coordinates never pass through the API or the model. Skips businesses this chat was already offered or shown ("Show another option"). Returns `short_name` and `eta_minutes` for payloads 07 and 12. `P0002` if no location yet. |
 | `create_handoff(conversation_id, tenant_id, suggested_min?, suggested_max?)` | API only | Offers the request and records the distance and suggested quote for the offer card. Window: the business's own override, else `platform_settings` (defaults: 5 minutes if urgency is `now`, 30 otherwise). One open handoff per conversation. |
-| `send_quote(job_id, lines, arrival_from, arrival_to, technician_id?, note?)` | Owner | Sends a quote (payload 13). Totals are the sum of the lines; a new quote supersedes the open one; the job moves to `owner_confirmed`. |
+| `send_quote(job_id, lines, arrival_from, arrival_to, technician_id?, note?)` | Owner | Sends a quote (payload 13). Totals are the sum of the lines; a new quote supersedes the open one; the job moves to `owner_confirmed`. Also writes an owner `messages` row linked by `quote_id` (stored as `sent`, so the outbox never sends it: payload 13 is Zukki's notice). |
 | `approve_quote(quote_id)` | API only | The customer's `quote_approve:<id>` button. Approves only the current quote and moves the job to `customer_approved`, which unlocks the address. |
 | `accept_handoff(handoff_id)` | Owner | Accepts in time, or expires the offer if the window closed (returns status `expired`). |
 | `decline_handoff(handoff_id, reason?, note?)` | Owner | Declines with a reason (`busy`, `too_far`, `not_offered`, `other`); the conversation goes back to matching. |
@@ -270,6 +270,7 @@ draft media without consent or from another business's job.
 | `save_customer_location` | API only | Stores coordinates in `customer_locations` and a referencing message, once. |
 | `claim_outbox`, `record_outbound_result`, `record_delivery_status` | API only | Owner and Zukki messages to send, claimed with `SKIP LOCKED`; receipts only move forward. |
 | `owner_offers`, `owner_conversations`, `owner_conversation_messages`, `owner_jobs` | Owner | One read per screen, SECURITY INVOKER so RLS applies. |
+| `owner_business`, `owner_update_business`, `owner_save_prices`, `owner_save_hours`, `owner_save_area` | Owner | The caller's first business (oldest membership): profile, prices, fees, hours, area, accept windows, linked accounts. SECURITY INVOKER; writes raise `42501` for staff and `P0002` without a business. |
 | `mark_conversation_read` | Owner | Read marker for unread counts. |
 
 HTTP endpoints over these: `docs/API.md`.

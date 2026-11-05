@@ -1,7 +1,7 @@
 import type { MiddlewareHandler } from 'hono';
 import { errorResponse, HttpError } from './respond.ts';
 
-const METHODS = ['GET', 'POST', 'PATCH'];
+const METHODS = ['GET', 'POST', 'PATCH', 'PUT', 'DELETE'];
 const HEADERS = ['authorization', 'content-type'];
 
 // Startup-only configuration; do not accept arbitrary request origins or wildcard hosts.

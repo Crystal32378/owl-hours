@@ -1,12 +1,12 @@
 // Setup step 1 (business): the saved profile draft, the website import check,
 // and the save that moves the flow to prices.
 import { useEffect, useState } from "react";
-import { demoOnboardingService } from "../services/onboardingService.ts";
 import type {
   OnboardingProfile,
   OnboardingService,
   WebsiteImport,
 } from "../services/onboardingService.ts";
+import { useOnboardingService } from "./useOnboardingService.ts";
 
 // Re-exported so screens type their props from the hook, never from the service module.
 export type { OnboardingProfile, WebsiteImport } from "../services/onboardingService.ts";
@@ -25,8 +25,8 @@ export type Profile =
   | { status: "ready"; view: ProfileView };
 
 export function useProfile(deps?: Partial<ProfileDeps>): Profile {
-  const [defaults] = useState(createDemoDeps);
-  const service = deps?.service ?? defaults.service;
+  const configured = useOnboardingService();
+  const service = deps?.service ?? configured;
 
   const [profile, setProfile] = useState<OnboardingProfile | null>(null);
   const [failed, setFailed] = useState(false);
@@ -65,16 +65,13 @@ export function useProfile(deps?: Partial<ProfileDeps>): Profile {
   }
 }
 
-// The imported prices are saved so the prices step starts from them.
+// The imported prices are saved so the prices step starts from them. An import that
+// found nothing (live mode has no importer) leaves the business's own prices alone.
 async function importAndStorePrices(
   service: OnboardingService,
   website: string,
 ): Promise<WebsiteImport> {
   const imported = await service.importFromWebsite(website);
-  await service.savePrices(imported.prices);
+  if (imported.prices.length > 0) await service.savePrices(imported.prices);
   return imported;
-}
-
-function createDemoDeps(): ProfileDeps {
-  return { service: demoOnboardingService };
 }

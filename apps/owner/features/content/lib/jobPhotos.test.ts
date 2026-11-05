@@ -5,7 +5,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { anaJob, drafts } from "../../../shared/data/mock.ts";
 import type { Job, PostDraft } from "../../../shared/data/types.ts";
-import { resolveJobPhotos } from "./jobPhotos.ts";
+import { photoSource, resolveJobPhotos } from "./jobPhotos.ts";
 
 describe("resolveJobPhotos", () => {
   const post91 = drafts.find((d) => d.id === "post_91")!;
@@ -95,5 +95,32 @@ describe("resolveJobPhotos", () => {
 
     assert.deepEqual(job, originalJob);
     assert.deepEqual(draft, originalDraft);
+  });
+
+  it("names the customer generically when the source has no customer name (live API)", () => {
+    const job = { ...structuredClone(anaJob), customerName: "" };
+
+    assert.equal(
+      resolveJobPhotos(structuredClone(post91), job)?.consentLine,
+      "Image made from your job photos. The customer agreed to share them.",
+    );
+  });
+});
+
+describe("photoSource", () => {
+  const assets = { "bath-leak": "asset://bath-leak" };
+
+  it("maps a demo photo key to its bundled asset", () => {
+    assert.equal(photoSource("bath-leak", assets, "asset://fallback"), "asset://bath-leak");
+  });
+
+  it("keeps a signed photo URL from the live API as is", () => {
+    const url = "http://127.0.0.1:54321/storage/v1/object/sign/media/a.jpg?token=t";
+    assert.equal(photoSource(url, assets, "asset://fallback"), url);
+  });
+
+  it("falls back when there is no photo or an unknown key", () => {
+    assert.equal(photoSource(undefined, assets, "asset://fallback"), "asset://fallback");
+    assert.equal(photoSource("unknown-key", assets, "asset://fallback"), "asset://fallback");
   });
 });

@@ -13,7 +13,7 @@ export function secondsLeft(expiresAt: string, now: string): number {
   return Math.max(0, Math.floor(msLeft / MS_PER_SECOND));
 }
 
-export function acceptWindowSeconds(urgent: boolean, acceptWindowMin: { urgent: number; other: number }): number {
-  const minutes = urgent ? acceptWindowMin.urgent : acceptWindowMin.other;
-  return minutes * SECONDS_PER_MINUTE;
+// The offer's own accept window: the business's urgent or normal window, fixed when it was offered.
+export function offerWindowSeconds(offer: { offeredAt: string; expiresAt: string }): number {
+  return secondsLeft(offer.expiresAt, offer.offeredAt);
 }

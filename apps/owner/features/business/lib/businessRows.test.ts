@@ -30,4 +30,11 @@ describe("businessRows", () => {
   it("reads the website exactly as the OwBusiness design shows it", () => {
     assert.equal(demoRows().website, "northside-plumbing.example · 12 services imported");
   });
+
+  it("shows the website alone when no imported-services count is known (live)", () => {
+    const rows = businessRows(structuredClone(business), { areaLabel: "Northside", importedServices: null, hasLocation: false });
+    assert.equal(rows.website, "northside-plumbing.example");
+    const { website: _website, ...withoutWebsite } = structuredClone(business);
+    assert.equal(businessRows(withoutWebsite, { areaLabel: "Northside", importedServices: null, hasLocation: false }).website, "");
+  });
 });

@@ -21,13 +21,12 @@ available to their existing workflow moments; Content does not import them.
 
 This pack is the single source of truth for the owl. The UI handoff used to
 carry its own copies (9 WebP + `static.png`, md5-identical) under `handoff-ui/`
-in `owner-app/assets/owl/`, `owner-app/design/html/img/zukki/` and
-`demo/html/img/zukki/`; those were removed. Each of those folders keeps a
+in `owner-app/assets/owl/` and `demo/html/img/zukki/`; those were removed. Each of those folders keeps a
 `README.md` with the restore command, plus an `avatar.png` (192x192 chat avatar
 used by the handoff HTML mocks) that has no counterpart here yet.
 
-Note: `handoff-ui/owner-app/starter/components/dom/owl/static.ts` embeds the
-same idle frame as a base64 data URI for the reduced-motion path.
+Note: `apps/owner/shared/mascot/owl/static.ts` embeds the same idle frame as a
+base64 data URI for the reduced-motion path.
 
 ## Source and usage
 

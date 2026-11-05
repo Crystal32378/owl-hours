@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { ISODate, Job } from "../../../shared/data/types.ts";
+import { afterFailedLoad } from "../../../shared/lib/loadState.ts";
+import type { LoadState } from "../../../shared/lib/loadState.ts";
 import { jobCardSubtitle } from "../lib/jobCardSubtitle.ts";
 import { jobStatusLine } from "../lib/jobStatusLine.ts";
 import type { JobStatusTone } from "../lib/jobStatusLine.ts";
@@ -9,7 +11,7 @@ import { scheduledJobLine } from "../lib/scheduledJobLine.ts";
 import { segmentTabs } from "../lib/segmentTabs.ts";
 import type { SegmentTab } from "../lib/segmentTabs.ts";
 import type { JobsService } from "../services/jobsService.ts";
-import { sharedDemoJobsService, sharedDemoNow } from "./demoJobsService.ts";
+import { jobsRuntime } from "./jobsRuntime.ts";
 
 export type JobsDeps = { service: JobsService; now: () => ISODate };
 
@@ -32,16 +34,19 @@ export type JobsListView = {
   tomorrowLines: string[]; // the "Tomorrow" card under the Tonight segment
 };
 
-// The jobs are null while they load. `reload` refetches them without clearing
-// the current view, so the screen stays rendered while reloading.
-export type JobsListResult = { jobs: JobsListView | null; reload: () => void };
+// A rejected first load is "failed" (the error state retries with `reload`); a rejected
+// reload keeps the list. `reload` refetches without clearing the current view.
+export type JobsListResult =
+  | { status: "loading"; reload: () => void }
+  | { status: "failed"; reload: () => void }
+  | { status: "ready"; jobs: JobsListView; reload: () => void };
 
 // Pass a stable service (a module constant or memoized): changing it reloads the jobs.
 export function useJobs(deps?: Partial<JobsDeps>): JobsListResult {
-  const [defaults] = useState(createDemoDeps);
+  const [defaults] = useState(createDefaultDeps);
   const service = deps?.service ?? defaults.service;
   const now = deps?.now ?? defaults.now;
-  const [jobs, setJobs] = useState<Job[] | null>(null);
+  const [jobs, setJobs] = useState<LoadState<Job[]>>("loading");
   const [reloadToken, setReloadToken] = useState(0);
   const reload = useCallback(() => setReloadToken((token) => token + 1), []);
 
@@ -53,17 +58,18 @@ export function useJobs(deps?: Partial<JobsDeps>): JobsListResult {
         if (isCurrent) setJobs(loaded);
       })
       .catch(() => {
-        if (isCurrent) setJobs([]);
+        if (isCurrent) setJobs(afterFailedLoad);
       });
     return () => {
       isCurrent = false;
     };
   }, [service, reloadToken]);
 
-  if (!jobs) return { jobs: null, reload };
+  if (jobs === "loading" || jobs === "failed") return { status: jobs, reload };
 
   const at = now();
   return {
+    status: "ready",
     jobs: {
       tabs: segmentTabs(jobs, at),
       tonight: cardsIn(jobs, "tonight", at),
@@ -89,6 +95,7 @@ function cardsIn(jobs: Job[], segment: JobSegment, now: ISODate): JobCardView[] 
   });
 }
 
-function createDemoDeps(): JobsDeps {
-  return { service: sharedDemoJobsService(), now: sharedDemoNow };
+// The live API when configured, the demo otherwise (S7).
+function createDefaultDeps(): JobsDeps {
+  return jobsRuntime();
 }

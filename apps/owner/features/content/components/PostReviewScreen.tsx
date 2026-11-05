@@ -3,7 +3,7 @@
 import '@astryxdesign/core/reset.css';
 import '@astryxdesign/core/astryx.css';
 import '@astryxdesign/theme-neutral/theme.css';
-import '@astryxdesign/theme-neutral/fonts.css';
+import '../../../shared/theme/figtreeStylesheet';
 import '../../../shared/theme/zukki-theme.css';
 
 import type { DOMProps } from 'expo/dom';
@@ -14,7 +14,7 @@ import { Card } from '@astryxdesign/core/Card';
 import { Text } from '@astryxdesign/core/Text';
 import { Button } from '@astryxdesign/core/Button';
 import { contentCopys } from '../copys/contentCopys';
-import type { ResolvedJobPhotos } from '../lib/jobPhotos';
+import { photoSource, type ResolvedJobPhotos } from '../lib/jobPhotos';
 import type { PostDraft } from '../../../shared/data/types';
 import { contentImages } from './contentImages';
 import ContentTopBar from './ContentTopBar';
@@ -34,6 +34,9 @@ export default function PostReviewScreen(props: {
   scheduledWhenText: string | null;
   jobPhotos: ResolvedJobPhotos | null;
   canApprove: boolean;
+  canRegenerate: boolean;
+  isPosting: boolean;
+  approveError: string | null;
   insets: { top: number; bottom: number };
   onBack: () => Promise<void>;
   onEditToggle: () => Promise<void>;
@@ -54,14 +57,13 @@ export default function PostReviewScreen(props: {
     scheduledWhenText,
     jobPhotos,
     canApprove,
+    canRegenerate,
+    isPosting,
+    approveError,
   } = props;
 
-  const beforeSrc =
-    (jobPhotos?.photos.before && contentImages.photoMap[jobPhotos.photos.before]) ||
-    contentImages.bathLeak;
-  const afterSrc =
-    (jobPhotos?.photos.after && contentImages.photoMap[jobPhotos.photos.after]) ||
-    contentImages.bathFixed;
+  const beforeSrc = photoSource(jobPhotos?.photos.before, contentImages.photoMap, contentImages.bathLeak);
+  const afterSrc = photoSource(jobPhotos?.photos.after, contentImages.photoMap, contentImages.bathFixed);
 
   return (
     <Theme theme={neutralTheme}>
@@ -227,6 +229,10 @@ export default function PostReviewScreen(props: {
           </Card>
         </div>
 
+        {approveError && (
+          <Text style={{ fontSize: 15, color: 'var(--color-error)', padding: '0 16px 12px' }}>{approveError}</Text>
+        )}
+
         {/* Footer actions */}
         <div
           style={{
@@ -234,21 +240,25 @@ export default function PostReviewScreen(props: {
             borderTop: '1px solid var(--color-border)',
             padding: '12px 16px',
             display: 'grid',
-            gridTemplateColumns: '1fr 2fr',
+            gridTemplateColumns: canRegenerate ? '1fr 2fr' : '1fr',
             gap: 8,
           }}
         >
-          <Button
-            label={contentCopys.regenerate}
-            variant="secondary"
-            size="lg"
-            onClick={() => void props.onRegenerate()}
-          />
+          {/* Hidden where nothing can write new copy (live API), never a fake redraft */}
+          {canRegenerate && (
+            <Button
+              label={contentCopys.regenerate}
+              variant="secondary"
+              size="lg"
+              onClick={() => void props.onRegenerate()}
+            />
+          )}
           <Button
             label={contentCopys.approveAndPost}
             variant="primary"
             size="lg"
             isDisabled={!canApprove}
+            isLoading={isPosting}
             onClick={() => void props.onApprove()}
           />
         </div>

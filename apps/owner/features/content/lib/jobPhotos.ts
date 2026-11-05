@@ -13,9 +13,12 @@ export type ResolvedJobPhotos = {
   consentLine: string;
 };
 
+// What the review screen needs from a job: the live API's content sources carry no other job field.
+export type JobPhotoSource = Pick<Job, "id" | "customerName" | "photos" | "shareConsent">;
+
 export function resolveJobPhotos(
   draft: PostDraft,
-  job?: Job | null,
+  job?: JobPhotoSource | null,
 ): ResolvedJobPhotos | null {
   if (!job) {
     return null;
@@ -29,11 +32,22 @@ export function resolveJobPhotos(
     return null;
   }
 
-  const firstName = job.customerName.trim().split(/\s+/)[0];
+  const firstName = job.customerName.trim().split(/\s+/)[0] || contentCopys.theCustomer;
   const consentLine = contentCopys.photoConsentLine(firstName);
 
   return {
     photos: structuredClone(job.photos),
     consentLine,
   };
+}
+
+// A demo photo is a key into the bundled assets; a live photo is already a signed URL.
+export function photoSource(
+  photo: string | undefined,
+  assets: Record<string, string>,
+  fallback: string,
+): string {
+  if (!photo) return fallback;
+  if (/^https?:\/\//.test(photo)) return photo;
+  return assets[photo] ?? fallback;
 }

@@ -36,7 +36,9 @@ export async function understandNeed(
   input: { history: HistoryEntry[]; parts: ContentPart[]; knownCategory: Category | null },
 ): Promise<Understanding> {
   const earlier = input.history.length > 0 ? [textPart(`Earlier in this chat:\n${historyText(input.history)}\n\nNew message:`)] : [];
-  const known = input.knownCategory ? ` The category is already known: ${input.knownCategory}.` : "";
+  const known = input.knownCategory
+    ? ` Earlier the customer needed: ${input.knownCategory}. If the new message asks for something different, return the new category.`
+    : "";
   const choice = await chat({
     messages: [
       { role: "system", content: `${UNDERSTAND_PROMPT}${known}` },

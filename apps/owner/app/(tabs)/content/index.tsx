@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import ContentLoadError from '../../../features/content/components/ContentLoadError';
 import ContentScreen from '../../../features/content/components/ContentScreen';
 import { useContent } from '../../../features/content/hooks/useContent';
+import LoadingSkeleton from '../../../shared/shell/LoadingSkeleton';
 
 export default function ContentRoute() {
   const insets = useSafeAreaInsets();
@@ -15,7 +16,7 @@ export default function ContentRoute() {
   }
 
   if (content.status !== 'ready') {
-    return null;
+    return <LoadingSkeleton />;
   }
 
   const { view } = content;

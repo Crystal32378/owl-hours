@@ -1,5 +1,5 @@
-import type { ExtraFee, PriceItem } from "../../../shared/data/types.ts";
-import { demoBusinessService } from "../services/businessService.ts";
+import type { Business, ExtraFee, FeeInput, PriceItem } from "../../../shared/data/types.ts";
+import { businessRuntime } from "./businessRuntime.ts";
 import type { BusinessService } from "../services/businessService.ts";
 import { useLoad } from "./useLoad.ts";
 
@@ -12,6 +12,7 @@ export type PricesView = {
   prices: PriceItem[];
   fees: ExtraFee[];
   savePrices: (prices: PriceItem[]) => Promise<boolean>;
+  saveFees: (fees: FeeInput[]) => Promise<boolean>;
 };
 
 export type PricesState =
@@ -20,21 +21,29 @@ export type PricesState =
   | { status: "ready"; view: PricesView; reload: () => Promise<void> };
 
 export function usePrices(deps?: Partial<PricesDeps>): PricesState {
-  const service = deps?.service ?? demoBusinessService;
+  const service = deps?.service ?? businessRuntime().service;
   const { state, reload, replace } = useLoad(() => loadPrices(service), [service]);
 
   if (state.status === "loading") return { status: "loading", reload };
   if (state.status === "failed") return { status: "failed", retry: state.retry, reload };
 
   async function savePrices(prices: PriceItem[]): Promise<boolean> {
-    const saved = await service.savePrices(prices);
+    return showSaved(await service.savePrices(prices));
+  }
+
+  async function saveFees(fees: FeeInput[]): Promise<boolean> {
+    return showSaved(await service.saveFees(fees));
+  }
+
+  // An invalid list saves nothing and keeps the screen as it is.
+  function showSaved(saved: Business | null): boolean {
     if (!saved) return false;
 
     replace({ prices: saved.prices, fees: saved.fees });
     return true;
   }
 
-  return { status: "ready", view: { prices: state.value.prices, fees: state.value.fees, savePrices }, reload };
+  return { status: "ready", view: { prices: state.value.prices, fees: state.value.fees, savePrices, saveFees }, reload };
 }
 
 async function loadPrices(

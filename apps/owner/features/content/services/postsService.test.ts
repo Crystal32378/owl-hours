@@ -103,6 +103,17 @@ describe("postsService.approve with edits", () => {
   });
 });
 
+describe("postsService.getScheduled", () => {
+  it("lists an approved post with the scheduled ones until the API marks it published", async () => {
+    const approved = { ...mockDrafts[0]!, id: "post_approved", status: "approved" as const };
+    const client = { ...createFakePostsClient(), listPosts: async () => [approved] };
+
+    const scheduled = await createPostsService(client, { now: () => DEMO_NOW }).getScheduled();
+
+    assert.deepEqual(scheduled.map((p) => p.id), ["post_approved"]);
+  });
+});
+
 describe("postsService.getPublished seed", () => {
   it("starts with the demo published post from the OwContent design", async () => {
     const published = await buildService().getPublished();
@@ -115,6 +126,38 @@ describe("postsService.getPublished seed", () => {
 });
 
 describe("postsService.regenerate", () => {
+  it("offers Regenerate in the demo", () => {
+    assert.equal(buildService().canRegenerate, true);
+  });
+
+  it("in the demo, each regenerate gives another caption and comes back around", async () => {
+    const service = buildService();
+    const original = (await service.getDraft("post_91"))?.caption;
+
+    const first = await service.regenerate("post_91");
+    const second = await service.regenerate("post_91");
+
+    assert.ok(first?.caption);
+    assert.notEqual(first?.caption, original);
+    assert.equal(second?.caption, original);
+  });
+
+  it("in the demo, reopening a draft starts Regenerate over, because the swapped caption is not saved", async () => {
+    const service = buildService();
+    const original = (await service.getDraft("post_91"))?.caption;
+    await service.regenerate("post_91");
+
+    await service.getDraft("post_91");
+
+    assert.notEqual((await service.regenerate("post_91"))?.caption, original);
+  });
+
+  it("gives every demo draft a caption to review", async () => {
+    const drafts = await buildService().getDrafts();
+
+    assert.deepEqual(drafts.filter((draft) => !draft.caption).map((draft) => draft.id), []);
+  });
+
   it("returns null when regenerating a non-draft (already scheduled)", async () => {
     const service = buildService();
     await service.approve("post_91");

@@ -5,6 +5,7 @@ import OnboardingLoadError from '../../features/onboarding/components/Onboarding
 import ProfileScreen from '../../features/onboarding/components/ProfileScreen';
 import { useProfile } from '../../features/onboarding/hooks/useProfile';
 import { resolveNext } from '../../features/onboarding/lib/setupSteps';
+import LoadingSkeleton from '../../shared/shell/LoadingSkeleton';
 
 export default function BusinessRoute() {
   const insets = useSafeAreaInsets();
@@ -14,7 +15,7 @@ export default function BusinessRoute() {
   if (business.status === 'failed') {
     return <OnboardingLoadError insets={safeInsets} onRetry={business.retry} dom={domHost} />;
   }
-  if (business.status !== 'ready') return null;
+  if (business.status !== 'ready') return <LoadingSkeleton />;
 
   const { view } = business;
   return (

@@ -3,7 +3,7 @@
 import '@astryxdesign/core/reset.css';
 import '@astryxdesign/core/astryx.css';
 import '@astryxdesign/theme-neutral/theme.css';
-import '@astryxdesign/theme-neutral/fonts.css';
+import '../../../shared/theme/figtreeStylesheet';
 import '../../../shared/theme/zukki-theme.css';
 
 import { useState } from 'react';
@@ -23,13 +23,14 @@ import { isSendCodeEnabled } from '../lib/signUpForm';
 import ZukkiSays from './ZukkiSays';
 
 // ZukkiSays + name, email, terms and "Send code", disabled until the form is valid.
-// "Continue with Facebook" skips verify; the fields stay DOM-local, only the send persists.
+// "Continue with Facebook" skips verify, so it shows only when the route passes onFacebook
+// (demo mode: live mode has no Facebook sign-in). The fields stay DOM-local, only the send persists.
 export default function SignUpScreen(props: {
   defaultName: string;
   defaultEmail: string;
   insets: { top: number; bottom: number };
   onSendCode: (name: string, email: string) => Promise<void>;
-  onFacebook: () => Promise<void>;
+  onFacebook?: (() => Promise<void>) | undefined;
   onBack: () => Promise<void>;
   dom?: DOMProps;
 }) {
@@ -54,15 +55,7 @@ export default function SignUpScreen(props: {
             <Text type="supporting">{onboardingCopys.emailHelp}</Text>
           </VStack>
           <CheckboxInput label={onboardingCopys.termsLabel} value={termsAccepted} onChange={setTermsAccepted} />
-          <Divider label={onboardingCopys.orDivider} />
-          <Button
-            label={onboardingCopys.continueWithFacebook}
-            variant="secondary"
-            size="lg"
-            width="100%"
-            icon={<FacebookIcon />}
-            onClick={() => props.onFacebook()}
-          />
+          {props.onFacebook && <FacebookSignIn onFacebook={props.onFacebook} />}
         </div>
         <div style={footerStyle}>
           <Button
@@ -76,6 +69,22 @@ export default function SignUpScreen(props: {
         </div>
       </div>
     </Theme>
+  );
+}
+
+function FacebookSignIn(props: { onFacebook: () => Promise<void> }) {
+  return (
+    <>
+      <Divider label={onboardingCopys.orDivider} />
+      <Button
+        label={onboardingCopys.continueWithFacebook}
+        variant="secondary"
+        size="lg"
+        width="100%"
+        icon={<FacebookIcon />}
+        onClick={() => props.onFacebook()}
+      />
+    </>
   );
 }
 
@@ -96,10 +105,12 @@ function FacebookIcon() {
 const FACEBOOK_BLUE = "#0866ff";
 const FACEBOOK_WHITE = "#ffffff";
 
-const pageStyle = { display: "flex", flexDirection: "column", width: "100%", minHeight: "100dvh" } as const;
+// One viewport tall with a scrolling body, so the footer button stays reachable on short
+// windows: Expo web sets `overflow: hidden` on <body>.
+const pageStyle = { display: "flex", flexDirection: "column", width: "100%", height: "100dvh" } as const;
 
 const backRowStyle = { height: 52, paddingInline: 8, display: "flex", alignItems: "center" } as const;
 
-const bodyStyle = { flex: 1, paddingInline: 24, display: "flex", flexDirection: "column", gap: 18 } as const;
+const bodyStyle = { flex: 1, minHeight: 0, overflowY: "auto", paddingInline: 24, display: "flex", flexDirection: "column", gap: 18 } as const;
 
 const footerStyle = { padding: "12px 24px 16px" } as const;

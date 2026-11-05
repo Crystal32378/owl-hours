@@ -12,3 +12,6 @@
   background: var(--color-background-body);
   border-top: 1px solid var(--color-border, rgba(0, 0, 0, 0.08));
 }
+
+/* Requests list (OwRequests): the waiting card's thumbnail is 72px, Astryx draws 64px. */
+.zukki-request-thumb { width: 72px; height: 72px; flex-shrink: 0; }

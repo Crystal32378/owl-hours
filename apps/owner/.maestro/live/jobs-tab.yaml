@@ -1,0 +1,9 @@
+appId: host.exp.Exponent
+---
+- openLink: "exp://127.0.0.1:8081/--/jobs"
+- tapOn: ".*Chats.*"
+- tapOn: ".*Jobs.*"
+- extendedWaitUntil:
+    visible: ".*${JOB_TITLE}.*"
+    timeout: 30000
+- takeScreenshot: live-07-jobs

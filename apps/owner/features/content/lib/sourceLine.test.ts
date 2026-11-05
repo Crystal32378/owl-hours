@@ -24,6 +24,11 @@ describe("sourceLine", () => {
     assert.equal(line, "Made from last night's job · Carlos agreed to share");
   });
 
+  it("names the customer generically when the job has no customer name (live API)", () => {
+    const line = sourceLine(post91, { ...structuredClone(anaJob), customerName: "" });
+    assert.equal(line, "Made from last night's job · The customer agreed to share");
+  });
+
   it("returns base job sourceLine when job is omitted or null", () => {
     assert.equal(sourceLine(post91), "made from last night's job");
     assert.equal(sourceLine(post91, null), "made from last night's job");

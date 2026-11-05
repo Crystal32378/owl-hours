@@ -7,7 +7,6 @@ const STATUSES_BEFORE_APPROVAL: JobStatus[] = ["quoted", "owner_confirmed"];
 // customer_approved on. A done card reads its final total instead of the quoted range.
 export function jobCardSubtitle(job: Job): string {
   const price = job.status === "done" && job.finalTotal !== undefined ? `$${job.finalTotal}` : moneyRangeText(job.quote.total);
-  if (STATUSES_BEFORE_APPROVAL.includes(job.status)) return `${job.customerName} · ${price}`;
-
-  return `${job.customerName} · ${job.technician} · ${price}`;
+  const technician = STATUSES_BEFORE_APPROVAL.includes(job.status) ? "" : job.technician;
+  return [job.customerName, technician, price].filter(Boolean).join(" · ");
 }

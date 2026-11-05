@@ -1,7 +1,7 @@
 # WhatsApp side: message catalog
 
 The customer never installs anything: every customer "screen" is a WhatsApp conversation with Zukki's number, built only from message types the **WhatsApp Cloud API** can send.
-- `payloads/` has one ready-to-send JSON body per message. POST it to `/<API_VERSION>/<PHONE_NUMBER_ID>/messages`.
+- `packages/whatsapp/src/payloads/` has one builder function per message (01–15). POST its output to `/<API_VERSION>/<PHONE_NUMBER_ID>/messages`.
 - `screens/` shows how each message looks on Android.
 
 `{{…}}` are placeholders the orchestrator fills in. Every payload was checked against Meta's documented limits (character counts, button and row counts, header types).
@@ -28,33 +28,33 @@ The customer never installs anything: every customer "screen" is a WhatsApp conv
 
 | Payload | Sent when | Screen | Replies we handle |
 |---|---|---|---|
-| `01-disclosure.json` | First message in any new conversation, before anything else | ZkWaStart, ZkWaRequest | — |
-| `02-what-are-you-looking-for.json` | Customer wrote without a photo, video or a clear need | ZkWaStart, ZkWaStartList | list_reply.id = cat_* (cat_plumbing, cat_electrical, cat_locksmith, cat_food, cat_beauty, cat_auto, cat_pets, cat_other) |
-| `03-typing-indicator.json` | Right after a video or voice note arrives, while Muse Spark / SAM / Transcribe run (shows ≤25 s) | — | — |
-| `04-safety-marked-frame.json` | Urgent home problem detected and a frame shows the shut-off point | ZkWaRequest | button_reply.id = safety_done | safety_cant_find |
-| `05-location-request.json` | After the safety step (or right away when nothing is urgent) | ZkWaLocation | type = location (latitude, longitude; name/address only if the customer adds them) |
-| `06-finding.json` | Location received | ZkWaMatch | — |
-| `07-suggest-business.json` | Directory returned the best match (open now, in area, closest) | ZkWaMatch | button_reply.id = connect:<business_id> | another_option |
-| `08-request-sent.json` | Customer tapped Connect me (handoff offered) | ZkWaTimeout (top) | — |
-| `09-next-business.json` | Offer expired or was declined | ZkWaTimeout | — |
-| `10-accepted.json` | Owner accepted in the app | ZkWaChatA/B | — |
-| `11-owner-message-as-written.json` | Owner sent a message with polish off | ZkWaChatA | — |
-| `12-owner-message-polished.json` | Owner picked Zukki's version | ZkWaChatB, DmWaChatB | button_reply.id = reply_ok | reply_question (relayed to the owner's chat) |
-| `13-quote.json` | Owner sent the quote from the app | DmWaApprove | button_reply.id = quote_approve:<id> | quote_question:<id> |
-| `14-off-topic.json` | Customer asks something that isn't about finding or contacting a local business | — | — |
-| `15-zukki-is-back.json` | Customer typed 'Zukki' during a business chat | — | — |
+| `disclosure()` | First message in any new conversation, before anything else | ZkWaStart, ZkWaRequest | — |
+| `whatAreYouLookingFor()` | Customer wrote without a photo, video or a clear need | ZkWaStart, ZkWaStartList | list_reply.id = cat_* (cat_plumbing, cat_electrical, cat_locksmith, cat_food, cat_beauty, cat_auto, cat_pets, cat_other) |
+| `typingIndicator()` | Right after a video or voice note arrives, while Muse Spark / SAM / Transcribe run (shows ≤25 s) | — | — |
+| `safetyMarkedFrame()` | Urgent home problem detected and a frame shows the shut-off point | ZkWaRequest | button_reply.id = safety_done | safety_cant_find |
+| `locationRequest()` | After the safety step (or right away when nothing is urgent) | ZkWaLocation | type = location (latitude, longitude; name/address only if the customer adds them) |
+| `finding()` | Location received | ZkWaMatch | — |
+| `suggestBusiness()` | Directory returned the best match (open now, in area, closest) | ZkWaMatch | button_reply.id = connect:<business_id> | another_option |
+| `requestSent()` | Customer tapped Connect me (handoff offered) | ZkWaTimeout (top) | — |
+| `nextBusiness()` | Offer expired or was declined | ZkWaTimeout | — |
+| `accepted()` | Owner accepted in the app | ZkWaChatA/B | — |
+| `ownerMessageAsWritten()` | Owner sent a message with polish off | ZkWaChatA | — |
+| `ownerMessagePolished()` | Owner picked Zukki's version | ZkWaChatB, DmWaChatB | button_reply.id = reply_ok | reply_question (relayed to the owner's chat) |
+| `quote()` | Owner sent the quote from the app | DmWaApprove | button_reply.id = quote_approve:<id> | quote_question:<id> |
+| `offTopic()` | Customer asks something that isn't about finding or contacting a local business | — | — |
+| `zukkiIsBack()` | Customer typed 'Zukki' during a business chat | — | — |
 
 ## Notes
 
-- `03-typing-indicator.json`: POST to /messages; marks the message read and shows 'typing…'
-- `04-safety-marked-frame.json`: The image is drawn by our code at SAM's box (circle, arrow, label) and served from a public URL
-- `07-suggest-business.json`: Demo values: Northside Plumbing · 4.9 (128) · 1.2 km · $45 · +$25 · from $60 · 40 min
-- `08-request-sent.json`: accept_minutes = 5 if urgent, 30 otherwise
-- `09-next-business.json`: Followed by 07-suggest-business for the next match (footer: 'Your video and details go with the request')
-- `11-owner-message-as-written.json`: Demo text: ok mario there 12:55, bringing the valve. 45 visit + 25 night, repair 60-90
-- `12-owner-message-polished.json`: Demo text: Hi Ana, Mario can be there at 12:55 AM and he's bringing a new fill valve. The visit is $45 plus a $25 night fee, and the repair should be $60–90. Footer must stay ≤60 chars: keep business_short_name short
-- `13-quote.json`: Demo values: Mario R. · 12:55–1:25 AM · $45 · +$25 · Fill valve repair $60–90 · $130–160
-- `14-off-topic.json`: Required by WhatsApp's ban on general-purpose AI chatbots (Jan 15, 2026)
+- `typingIndicator()`: POST to /messages; marks the message read and shows 'typing…'
+- `safetyMarkedFrame()`: The image is drawn by our code at SAM's box (circle, arrow, label) and served from a public URL
+- `suggestBusiness()`: Demo values: Northside Plumbing · 4.9 (128) · 1.2 km · $45 · +$25 · from $60 · 40 min
+- `requestSent()`: accept_minutes = 5 if urgent, 30 otherwise
+- `nextBusiness()`: Followed by `suggestBusiness()` for the next match (footer: 'Your video and details go with the request')
+- `ownerMessageAsWritten()`: Demo text: ok mario there 12:55, bringing the valve. 45 visit + 25 night, repair 60-90
+- `ownerMessagePolished()`: Demo text: Hi Ana, Mario can be there at 12:55 AM and he's bringing a new fill valve. The visit is $45 plus a $25 night fee, and the repair should be $60–90. Footer must stay ≤60 chars: keep business_short_name short
+- `quote()`: Demo values: Mario R. · 12:55–1:25 AM · $45 · +$25 · Fill valve repair $60–90 · $130–160
+- `offTopic()`: Required by WhatsApp's ban on general-purpose AI chatbots (Jan 15, 2026)
 
 ## Routing replies (webhook → next step)
 

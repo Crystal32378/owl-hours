@@ -1,0 +1,14 @@
+# Opens one screen on the live stack and waits for a value the e2e script just wrote to the
+# local database. Seeing it proves the screen reads the owner API, not the demo data.
+# env: ROUTE (deep-link path), MARKER (the unique value written to the database), SHOT
+appId: host.exp.Exponent
+---
+- openLink: "exp://127.0.0.1:8081/--/requests"
+- extendedWaitUntil:
+    visible: ".*Requests"
+    timeout: 60000
+- openLink: "exp://127.0.0.1:8081/--/${ROUTE}"
+- extendedWaitUntil:
+    visible: ".*${MARKER}.*"
+    timeout: 30000
+- takeScreenshot: ${SHOT}

@@ -1,22 +1,22 @@
 import { useEffect, useState } from "react";
-import { DEMO_NOW, business } from "../../../shared/data/mock.ts";
-import type { DeclineReason, ID, OfferStatus, PossibleFault, RequestOffer } from "../../../shared/data/types.ts";
+import { afterFailedLoad } from "../../../shared/lib/loadState.ts";
+import type { LoadState } from "../../../shared/lib/loadState.ts";
+import type { DeclineReason, ID, OfferStatus, PossibleFault } from "../../../shared/data/types.ts";
 import type { AcceptOutcome } from "../lib/acceptOutcome.ts";
-import { acceptWindowSeconds, formatCountdown, secondsLeft } from "../lib/countdown.ts";
+import { formatCountdown, offerWindowSeconds, secondsLeft } from "../lib/countdown.ts";
 import { requestFaults } from "../lib/requestFaults.ts";
-import { createFakeOffersClient, createOffersService } from "../services/offersService.ts";
-import type { OffersService } from "../services/offersService.ts";
+import type { Offer, OffersService } from "../services/offersService.ts";
+import { createRequestsRuntime } from "./requestsRuntime.ts";
 
 const TICK_MS = 1000;
 
 export type RequestOfferDeps = {
   service: OffersService;
   clock: () => string; // current instant as an ISO date
-  acceptWindowMin: { urgent: number; other: number };
 };
 
 export type RequestOfferDetails = Pick<
-  RequestOffer,
+  Offer,
   "title" | "customerName" | "distanceKm" | "zukkiSummary" | "media" | "customerQuote" | "offeredAt"
 > & { possibleFaults: PossibleFault[] };
 
@@ -32,35 +32,52 @@ export type RequestOfferView = {
   decline: (reason?: DeclineReason) => Promise<boolean>;
 };
 
-// Returns null while the offer loads, or when it does not exist.
+// A failed load and an offer that does not exist both draw the error state, whose retry
+// loads it again: neither leaves the screen blank.
+export type RequestOfferScreen =
+  | { status: "loading" }
+  | { status: "failed"; retry: () => Promise<void> }
+  | { status: "ready"; view: RequestOfferView };
+
 // Pass stable deps (module constants or memoized): changing them restarts the clock.
-export function useRequestOffer(id: ID, deps?: Partial<RequestOfferDeps>): RequestOfferView | null {
-  const [defaults] = useState(createDemoDeps);
+export function useRequestOffer(id: ID, deps?: Partial<RequestOfferDeps>): RequestOfferScreen {
+  const [defaults] = useState(createDefaultDeps);
   const service = deps?.service ?? defaults.service;
   const clock = deps?.clock ?? defaults.clock;
-  const acceptWindowMin = deps?.acceptWindowMin ?? defaults.acceptWindowMin;
 
-  const [offer, setOffer] = useState<RequestOffer | null>(null);
+  const [offer, setOffer] = useState<LoadState<Offer | null>>("loading");
+  const [attempt, setAttempt] = useState(0);
   const [now, setNow] = useState(clock);
 
   useEffect(() => {
     let isCurrent = true;
-    service.getOffer(id).then((loaded) => {
-      if (isCurrent) setOffer(loaded);
-    });
+    service.getOffer(id).then(
+      (loaded) => {
+        if (isCurrent) setOffer(loaded);
+      },
+      () => {
+        if (isCurrent) setOffer(afterFailedLoad);
+      },
+    );
     return () => {
       isCurrent = false;
     };
-  }, [service, id]);
+  }, [service, id, attempt]);
 
   useEffect(() => {
     const timer = setInterval(() => setNow(clock()), TICK_MS);
     return () => clearInterval(timer);
   }, [clock]);
 
-  async function answer(transition: () => Promise<RequestOffer | null>) {
+  // A refused answer (the offer expired or was answered elsewhere) reloads the offer,
+  // so the screen shows its current state instead of the one it was opened with.
+  async function answer(transition: () => Promise<Offer | null>) {
     const answered = await transition();
-    if (!answered) return false;
+    if (!answered) {
+      const reloaded = await service.getOffer(id).catch(() => null);
+      setOffer((current) => reloaded ?? current);
+      return false;
+    }
 
     setOffer(answered);
     return true;
@@ -72,32 +89,28 @@ export function useRequestOffer(id: ID, deps?: Partial<RequestOfferDeps>): Reque
     return { kind: "accepted", chatId: await service.findChat(id) };
   }
 
-  if (!offer) return null;
+  if (offer === "loading") return { status: "loading" };
+  if (offer === "failed" || offer === null) return { status: "failed", retry: reload };
 
   const remaining = secondsLeft(offer.expiresAt, now);
-  return {
+  const view: RequestOfferView = {
     offer: { ...offer, possibleFaults: requestFaults(offer) },
     status: offer.status,
     countdownText: formatCountdown(remaining),
     secondsLeft: remaining,
-    maxSeconds: acceptWindowSeconds(offer.urgent, acceptWindowMin),
-    isExpired: remaining === 0,
+    maxSeconds: offerWindowSeconds(offer),
+    isExpired: remaining === 0 || offer.status === "expired",
     accept: acceptAndFindChat,
     decline: (reason) => answer(() => service.decline(id, reason)),
   };
+  return { status: "ready", view };
+
+  async function reload(): Promise<void> {
+    setOffer("loading");
+    setAttempt((count) => count + 1);
+  }
 }
 
-function createDemoDeps(): RequestOfferDeps {
-  return {
-    service: createOffersService(createFakeOffersClient()),
-    clock: createDemoClock(),
-    acceptWindowMin: business.acceptWindowMin,
-  };
-}
-
-// The demo offer expires in 2026, so the clock starts at DEMO_NOW and advances with real time since mount.
-function createDemoClock(): () => string {
-  const startedAt = Date.now();
-  const demoStart = Date.parse(DEMO_NOW);
-  return () => new Date(demoStart + (Date.now() - startedAt)).toISOString();
+function createDefaultDeps(): RequestOfferDeps {
+  return createRequestsRuntime();
 }

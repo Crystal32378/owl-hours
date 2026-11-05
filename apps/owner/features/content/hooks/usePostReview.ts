@@ -1,18 +1,14 @@
 // Hook for OwPostReview screen: manages post draft state, targets, caption editing, and approval.
 import { useCallback, useEffect, useState } from "react";
-import { DEMO_NOW } from "../../../shared/data/mock.ts";
-import type { ID, Job, PostDraft } from "../../../shared/data/types.ts";
+import type { ID, PostDraft } from "../../../shared/data/types.ts";
 import { contentCopys } from "../copys/contentCopys.ts";
-import { resolveJobPhotos } from "../lib/jobPhotos.ts";
+import { resolveJobPhotos, type JobPhotoSource } from "../lib/jobPhotos.ts";
 import type { ResolvedJobPhotos } from "../lib/jobPhotos.ts";
 import { canApprovePost } from "../lib/postApproval.ts";
 import { postWhenText } from "../lib/postWhenText.ts";
 import { sourceLine } from "../lib/sourceLine.ts";
-import {
-  createPostsService,
-  defaultFakePostsClient,
-} from "../services/postsService.ts";
 import type { PostsService } from "../services/postsService.ts";
+import { contentRuntime } from "./contentRuntime.ts";
 
 export type PostReviewView = {
   draft: PostDraft;
@@ -24,6 +20,11 @@ export type PostReviewView = {
   scheduledWhenText: string | null;
   jobPhotos: ResolvedJobPhotos | null;
   canApprove: boolean;
+  canRegenerate: boolean;
+  // While the API reviews and posts; a second tap would post twice.
+  isPosting: boolean;
+  // The API's message when posting failed; the post then stays approved and Approve and post retries.
+  approveError: string | null;
   onSetCaption: (caption: string) => Promise<void>;
   onToggleTarget: (target: "facebook" | "instagram") => Promise<void>;
   onToggleEditCaption: () => Promise<void>;
@@ -50,7 +51,7 @@ export function usePostReview(
   const clock = deps?.clock ?? defaultDeps.clock;
 
   const [draft, setDraft] = useState<PostDraft | null>(null);
-  const [job, setJob] = useState<Job | null>(null);
+  const [job, setJob] = useState<JobPhotoSource | null>(null);
   const [businessName, setBusinessName] = useState("");
   const [allDraftsCount, setAllDraftsCount] = useState(0);
   const [draftIndex, setDraftIndex] = useState(1);
@@ -61,6 +62,8 @@ export function usePostReview(
     instagram: true,
   });
   const [status, setStatus] = useState<"loading" | "error" | "ready">("loading");
+  const [isPosting, setIsPosting] = useState(false);
+  const [approveError, setApproveError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -75,7 +78,7 @@ export function usePostReview(
         return;
       }
 
-      let loadedJob: Job | null = null;
+      let loadedJob: JobPhotoSource | null = null;
       if (loadedDraft.sourceJobId) {
         loadedJob = await service.getJob(loadedDraft.sourceJobId);
       }
@@ -129,7 +132,10 @@ export function usePostReview(
     targets,
     scheduledWhenText,
     jobPhotos,
-    canApprove,
+    canApprove: canApprove && !isPosting,
+    canRegenerate: service.canRegenerate,
+    isPosting,
+    approveError,
     onSetCaption: async (newCaption: string) => {
       setCaption(newCaption);
     },
@@ -143,11 +149,16 @@ export function usePostReview(
       setIsEditingCaption((prev) => !prev);
     },
     onApprove: async () => {
-      const result = await service.approve(draft.id, {
-        caption,
-        targets,
-      });
-      return result;
+      setIsPosting(true);
+      setApproveError(null);
+      try {
+        return await service.approve(draft.id, { caption, targets });
+      } catch (error) {
+        setApproveError(error instanceof Error ? error.message : contentCopys.postFailed);
+        return null;
+      } finally {
+        setIsPosting(false);
+      }
     },
     onRegenerate: async () => {
       const result = await service.regenerate(draft.id);
@@ -162,8 +173,6 @@ export function usePostReview(
 }
 
 function createDefaultDeps(): PostReviewDeps {
-  return {
-    service: createPostsService(defaultFakePostsClient),
-    clock: () => DEMO_NOW,
-  };
+  const root = contentRuntime();
+  return { service: root.postsService, clock: root.now };
 }

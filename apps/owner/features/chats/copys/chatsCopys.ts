@@ -13,6 +13,8 @@ const copys = {
   // suggestion row above the composer
   zukkiSuggestsQuote: "Zukki suggests sending the quote:",
   reviewQuote: "Review",
+  // the quote entry when Zukki suggests nothing: the quote modal's title (jobsCopys.sendAQuote)
+  sendAQuote: "Send a quote",
   // composer
   messageLabel: "Message",
   writeToPlaceholder: "Write to",

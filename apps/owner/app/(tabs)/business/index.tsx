@@ -6,12 +6,13 @@ import BusinessScreen from "../../../features/business/components/BusinessScreen
 import BusinessLoadError from "../../../features/business/components/BusinessLoadError";
 import { useBusiness } from "../../../features/business/hooks/useBusiness";
 import { businessLinks } from "../../../features/business/lib/businessLinks";
+import LoadingSkeleton from '../../../shared/shell/LoadingSkeleton';
 
 export default function BusinessRoute() {
   const insets = useSafeAreaInsets();
   const business = useBusiness();
   const reload = business.reload;
-  // The three business screens share one demo service: re-read it on every
+  // The three business screens share one business service: re-read it on every
   // focus so prices saved in OwPrices show here when coming back.
   useFocusEffect(useCallback(() => {
     void reload();
@@ -21,7 +22,7 @@ export default function BusinessRoute() {
   if (business.status === 'failed') {
     return <BusinessLoadError insets={safeInsets} onRetry={business.retry} dom={domHost} />;
   }
-  if (business.status !== 'ready') return null;
+  if (business.status !== 'ready') return <LoadingSkeleton />;
 
   const { view } = business;
   return (
@@ -30,6 +31,7 @@ export default function BusinessRoute() {
       rows={view.rows}
       insets={safeInsets}
       onOpenPrices={async () => router.push('/business/prices')}
+      onOpenHours={async () => router.push(`/${businessLinks.hours}`)}
       onOpenSettings={async () => router.push('/settings')}
       onTestZukki={async () => router.push(`/${businessLinks.testZukki}`)}
       dom={domHost}

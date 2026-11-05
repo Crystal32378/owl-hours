@@ -19,7 +19,7 @@ name: Review opens the quote, Send quote returns to the chat
 - assertVisible: "12:55–1:25 AM"
 - assertVisible: "Mario R."
 - assertVisible: "Excludes floor damage"
-- assertVisible: "Ana approves it in WhatsApp. Nothing is booked until she does."
+- assertVisible: "Ana approves it in WhatsApp. Nothing is booked until they do."
 - takeScreenshot: 08-quote-modal
 - tapOn: "Send quote"
 - runFlow: subflows/dismiss-logbox.yaml

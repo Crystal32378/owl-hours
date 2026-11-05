@@ -3,4 +3,5 @@
 export const businessLinks = {
   testZukki: "business/test",
   prices: "business/prices",
+  hours: "business/hours",
 } as const;

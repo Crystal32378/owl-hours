@@ -1,12 +1,13 @@
 // Pure function to determine the source line or draft subtitle from draft and optional job.
 // No nested ternary; used by both useContent and usePostReview hooks.
-import type { Job, PostDraft } from "../../../shared/data/types.ts";
+import type { PostDraft } from "../../../shared/data/types.ts";
+import type { JobPhotoSource } from "./jobPhotos.ts";
 import { contentCopys } from "../copys/contentCopys.ts";
 
-export function sourceLine(draft: PostDraft, job?: Job | null): string {
+export function sourceLine(draft: PostDraft, job?: JobPhotoSource | null): string {
   if (draft.source === "job") {
     if (job) {
-      const firstName = job.customerName.trim().split(/\s+/)[0];
+      const firstName = job.customerName.trim().split(/\s+/)[0] || contentCopys.theCustomer;
       return contentCopys.jobDraftSubtitle(firstName);
     }
     return contentCopys.sourceLine.job;

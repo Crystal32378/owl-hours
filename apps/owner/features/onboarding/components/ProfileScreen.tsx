@@ -3,7 +3,7 @@
 import '@astryxdesign/core/reset.css';
 import '@astryxdesign/core/astryx.css';
 import '@astryxdesign/theme-neutral/theme.css';
-import '@astryxdesign/theme-neutral/fonts.css';
+import '../../../shared/theme/figtreeStylesheet';
 import '../../../shared/theme/zukki-theme.css';
 
 import { useRef, useState } from 'react';
@@ -47,6 +47,7 @@ export default function ProfileScreen(props: {
       onBack={() => props.onBack()}
       footerLabel={onboardingCopys.continueButton}
       onFooter={() => props.onSave({ name, category, website })}
+      isFooterDisabled={name.trim() === "" || category.trim() === ""}
     >
       <SetupStepHeader step={1} />
       <Heading level={1}>{onboardingCopys.profileTitle}</Heading>
@@ -83,8 +84,9 @@ export default function ProfileScreen(props: {
   async function readWebsite() {
     if (website.trim() === "" || importStatus !== "idle") return;
     setImportStatus("reading");
-    await props.onImportWebsite(website);
-    setImportStatus("imported");
+    const imported = await props.onImportWebsite(website);
+    // Nothing imported (live mode): no imported note, the field reads as before.
+    setImportStatus(imported.services > 0 ? "imported" : "idle");
   }
 
   function pickLogo(event: React.ChangeEvent<HTMLInputElement>) {
@@ -128,9 +130,10 @@ function CheckIcon() {
   );
 }
 
-// The profile stores the raw category ("plumbing"); the field shows it capitalized ("Plumbing").
+// The profile stores the category key ("water_heaters"); the field shows it as words ("Water heaters").
 function displayCategory(category: string): string {
-  return category.charAt(0).toUpperCase() + category.slice(1);
+  const words = category.replaceAll("_", " ");
+  return words.charAt(0).toUpperCase() + words.slice(1);
 }
 
 const logoStyle = { borderRadius: "var(--radius-container)" } as const;

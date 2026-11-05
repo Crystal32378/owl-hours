@@ -9,6 +9,8 @@ export const requestsCopys = {
   decline: "Decline",
   acceptAndChat: "Accept and chat",
   newRequest: "New request",
+  requestWord: "request", // "Plumbing request", the title of a request the customer has not described yet
+  serviceRequest: "Service request",
   sentByZukki: "Sent by Zukki",
   videoFrameAlt: "Frame from the customer's video",
   photoAlt: "Photo from the customer",

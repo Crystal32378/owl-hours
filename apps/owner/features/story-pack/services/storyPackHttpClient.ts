@@ -17,10 +17,16 @@ import { hasSelectedStoryMedia } from "../lib/storyPack.ts";
 import { storyPackServiceCopys as copy } from "../copys/storyPackServiceCopys.ts";
 import type { StoryPackClient } from "./storyPackService.ts";
 
+function httpErrorMessage(status: number): string {
+  if (status === 401) return copy.sessionError;
+  if (status === 409) return copy.changedSinceReview;
+  return copy.requestError;
+}
+
 export class StoryPackHttpError extends Error {
   readonly status: number;
   constructor(status: number) {
-    super(status === 401 ? copy.sessionError : copy.requestError);
+    super(httpErrorMessage(status));
     this.status = status;
   }
 }
@@ -121,12 +127,12 @@ export function createHttpStoryPackClient(
           }),
         ),
       ),
-    update: async (pack) =>
+    update: async (pack, expectedUpdatedAt = pack.updatedAt) =>
       fromDraft(
         await request(
           `/drafts/${encodeURIComponent(pack.id)}`,
           "PATCH",
-          storyPackUpdateSchema.parse(fields(pack)),
+          storyPackUpdateSchema.parse({ ...fields(pack), expectedUpdatedAt }),
         ),
       ),
     review: async (id, snapshot) =>

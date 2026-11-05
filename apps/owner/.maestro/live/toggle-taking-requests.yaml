@@ -1,0 +1,10 @@
+# Flips the Requests "Taking requests" switch; the e2e script then reads tenants.accepts_now.
+appId: host.exp.Exponent
+---
+- openLink: "exp://127.0.0.1:8081/--/requests"
+- extendedWaitUntil:
+    visible: ".*Taking requests.*"
+    timeout: 60000
+- tapOn: ".*Taking requests.*"
+- waitForAnimationToEnd
+- takeScreenshot: live-taking-requests-toggled

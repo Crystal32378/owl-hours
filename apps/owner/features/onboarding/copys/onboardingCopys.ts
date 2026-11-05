@@ -48,6 +48,7 @@ export const onboardingCopys = {
   // setup step 2: prices
   pricesTitle: "Prices and fees",
   pricesLead: "I found these on your website. Check them before customers see them.",
+  pricesLeadEmpty: "Add your prices so customers know what you charge.",
   extraFees: "Extra fees",
   addPrice: "Add a price",
   editAction: "Edit",
@@ -64,6 +65,12 @@ export const onboardingCopys = {
   nightRequestsWindow: "10 PM–7 AM, with your night fee",
   finishButton: "Finish",
   mapAlt: "Map of the service area",
+  mapDragHint: "Drag the pin to move your business.",
+  useLocation: "Use my current location",
+  locationNeeded: "Add your location so customers nearby can find you.",
+  locationSaved: "Location saved.",
+  locationDenied: "Location access was denied.",
+  locationUnavailable: "Couldn't get your location. Try again.",
   // live
   liveTitle: "Northside is live on Zukki",
   liveTitleTail: "is live on Zukki",

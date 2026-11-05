@@ -105,7 +105,7 @@ export function buildApprovalMediaSnapshot(
   source: StorySource,
   pack: StoryPack,
 ): ApprovalMediaItem[] | null {
-  if (source.id !== pack.sourceJobId) {
+  if (source.id !== pack.sourceJobId || pack.sourceMediaIds.length !== 2 || new Set(pack.sourceMediaIds).size !== 2) {
     return null;
   }
 
@@ -120,7 +120,7 @@ export function buildApprovalMediaSnapshot(
   const snapshot: ApprovalMediaItem[] = [];
 
   for (const asset of selectedAssets) {
-    if (!asset.revision) {
+    if (!asset.revision || (!pack.isDemo && !/^[a-f0-9]{64}$/.test(asset.revision))) {
       return null;
     }
 
@@ -155,7 +155,7 @@ export function hasSelectedStoryMedia(
   source: StorySource,
 ): boolean {
   if (source.id !== pack.sourceJobId || !canCreateStoryPack(source)) return false;
-  if (pack.sourceMediaIds.length < 2 || pack.sourceMediaIds.length > 6 || new Set(pack.sourceMediaIds).size !== pack.sourceMediaIds.length) return false;
+  if (pack.sourceMediaIds.length !== 2 || new Set(pack.sourceMediaIds).size !== pack.sourceMediaIds.length) return false;
   const selected = pack.sourceMediaIds.map((id) => source.assets.find((asset) => asset.id === id));
   return selected.every(Boolean) && REQUIRED_STORY_ROLES.every((role) => selected.some((asset) => asset?.role === role));
 }

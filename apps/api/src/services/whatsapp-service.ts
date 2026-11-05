@@ -8,6 +8,7 @@ import { createSupabaseRepository } from "../db/repository.ts";
 import { HttpError } from "../http/respond.ts";
 import { unwrap } from "./db-result.ts";
 import { notifyOfferOwners } from "./owner-push.ts";
+import { suggestedQuote } from "./suggested-quote.ts";
 
 const uuid = z.string().uuid();
 
@@ -199,6 +200,19 @@ export async function findMatches(
   });
 }
 
+// The range Zukki suggests on the offer, from the business's price rules at
+// its own local hour (suggested-quote.ts).
+export async function suggestedQuoteFor(db: SupabaseClient, businessId: string, now: Date) {
+  const tenant = z.object({ timezone: z.string() }).parse(
+    unwrap(await db.from("tenants").select("timezone").eq("id", businessId).single()),
+  );
+  const rules = z
+    .array(z.object({ item: z.string(), kind: z.string(), min_amount: z.number(), max_amount: z.number(), conditions: z.string().nullable() }))
+    .parse(unwrap(await db.from("price_rules").select("item, kind, min_amount, max_amount, conditions").eq("tenant_id", businessId)));
+  const localHour = Number(new Intl.DateTimeFormat("en-US", { hour: "numeric", hourCycle: "h23", timeZone: tenant.timezone }).format(now));
+  return suggestedQuote(rules, localHour);
+}
+
 // "Connect me": offers the request to the business and starts its timer.
 // The owner push goes out best-effort after the offer stands: a push failure
 // is logged and never blocks or rolls back the offer (S11).
@@ -252,10 +266,16 @@ export async function claimOutbox(db: SupabaseClient, limit = 20) {
   return z.array(z.record(z.unknown())).parse(unwrap(await db.rpc("claim_outbox", { p_limit: limit })));
 }
 
-export async function recordOutboundResult(db: SupabaseClient, messageId: string, waMessageId: string | null) {
+// retry: the send failed in a way that may pass (busy, down, no answer);
+// the database queues it again with backoff, up to 5 tries.
+export async function recordOutboundResult(db: SupabaseClient, messageId: string, waMessageId: string | null, retry = false) {
   const row = z
     .object({ id: uuid, delivery: z.string(), wa_message_id: z.string().nullable() })
-    .parse(unwrap(await db.rpc("record_outbound_result", { p_message_id: messageId, p_wa_message_id: waMessageId })));
+    .parse(
+      unwrap(
+        await db.rpc("record_outbound_result", { p_message_id: messageId, p_wa_message_id: waMessageId, p_retry: retry }),
+      ),
+    );
   return { id: row.id, status: row.delivery, waMessageId: row.wa_message_id };
 }
 

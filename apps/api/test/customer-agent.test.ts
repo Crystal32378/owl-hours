@@ -2,22 +2,18 @@
 // handoff-ui/whatsapp/payloads, which the WhatsApp integration sends.
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
 import { AI_DISCLOSURE, CUSTOMER_SYSTEM_PROMPT, OFF_TOPIC_REPLY, nextSafetyQuestion } from "../src/agent/customer-agent.ts";
-
-async function payloadBody(file: string): Promise<string> {
-  const url = new URL(`../../../handoff-ui/whatsapp/payloads/${file}`, import.meta.url);
-  const payload = JSON.parse(await readFile(url, "utf8")) as { text: { body: string } };
-  return payload.text.body;
-}
 
 describe("customer agent copy", () => {
   it("discloses the AI with the exact payload 01 text", async () => {
-    assert.equal(AI_DISCLOSURE, await payloadBody("01-disclosure.json"));
+    assert.equal(
+      AI_DISCLOSURE,
+      "Hi, I'm Zukki, an AI assistant that finds you a local business and connects you with it. A person from the business confirms every request.",
+    );
   });
 
   it("uses the exact payload 14 text for off-topic messages", async () => {
-    assert.equal(OFF_TOPIC_REPLY, await payloadBody("14-off-topic.json"));
+    assert.equal(OFF_TOPIC_REPLY, "I can only help you find and contact local businesses. What do you need today?");
     assert.ok(CUSTOMER_SYSTEM_PROMPT.includes(OFF_TOPIC_REPLY));
   });
 

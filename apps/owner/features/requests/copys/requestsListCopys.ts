@@ -1,0 +1,23 @@
+// Visible text of the Requests tab. Source: handoff-ui/owner-app/design/html/OwRequests.dc.html,
+// and HANDOFF-RN-UI.md:300-312 for the two empty states the HTML does not draw.
+export const requestsListCopys = {
+  title: "Requests",
+  takingRequests: "Taking requests",
+  waitingForYou: "Waiting for you",
+  urgent: "Urgent",
+  timeLeft: "left",
+  suggestedQuote: "suggested quote",
+  reviewRequest: "Review request",
+  earlierTonight: "Earlier tonight",
+  accepted: "Accepted",
+  missed: "Missed",
+  declined: "Declined",
+  footnote: "Missed and declined requests go to another business. Customers never see why.",
+  notTakingTitle: "You're not taking requests",
+  notTakingBody: "Zukki won't suggest you until you turn this on.",
+  noRequestsTitle: "No requests yet",
+  noRequestsBody: "We'll notify you when someone nearby needs you.",
+  somethingWentWrong: "Something went wrong.",
+  tryAgain: "Try again",
+  refreshFailedNotice: "Couldn't refresh. Showing saved requests.",
+} as const;

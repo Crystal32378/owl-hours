@@ -33,6 +33,12 @@ describe("conversationSession suggestion", () => {
     assert.equal(chat.suggestedQuoteText, null);
   });
 
+  // odd/tasks/owner-chat-live-fixes.md S2: the demo keeps offering the quote only where it did.
+  it("offers the quote entry for Ana's job and none for Carlos's chat without a job", async () => {
+    assert.equal((await loadedChat("c_ana")).canSendQuote, true);
+    assert.equal((await loadedChat("c_carlos")).canSendQuote, false);
+  });
+
   it("still loads the chat, without a suggestion, when the suggestion lookup fails", async () => {
     const failingLookup = async () => {
       throw new Error("suggestion lookup failed");

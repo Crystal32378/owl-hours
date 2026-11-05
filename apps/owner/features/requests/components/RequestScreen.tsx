@@ -3,7 +3,7 @@
 import '@astryxdesign/core/reset.css';
 import '@astryxdesign/core/astryx.css';
 import '@astryxdesign/theme-neutral/theme.css';
-import '@astryxdesign/theme-neutral/fonts.css';
+import '../../../shared/theme/figtreeStylesheet';
 import '../../../shared/theme/zukki-theme.css';
 
 import type { DOMProps } from 'expo/dom';
@@ -26,6 +26,7 @@ import owlFailed from '../../../shared/mascot/owl/failed';
 import owlStatic from '../../../shared/mascot/owl/static';
 import type { DeclineReason } from '../../../shared/data/types.ts';
 import { sentTimeText } from '../lib/sentTimeText';
+import { customerLine } from '../lib/customerLine';
 import { DECLINE_REASONS, canSubmitDecline } from '../lib/declineSheet';
 import { requestsCopys } from '../copys/requestsCopys';
 import { declineCopys } from '../copys/declineCopys';
@@ -73,7 +74,7 @@ export default function RequestScreen(props: {
             <VStack gap={2}>
               <HStack gap={1} align="center">
                 <StatusDot variant="error" label={requestsCopys.urgent} />
-                <Text type="supporting">{offer.customerName} · {offer.distanceKm} {requestsCopys.approximateDistance}</Text>
+                <Text type="supporting">{customerLine(offer)}</Text>
               </HStack>
               <Heading level={1} accessibilityLevel={2}>{offer.title}</Heading>
               {firstMedia && <CustomerMedia media={firstMedia} />}

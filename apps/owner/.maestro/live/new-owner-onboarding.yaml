@@ -1,0 +1,69 @@
+# A new owner signs up on the live stack and finishes onboarding: the business step creates the
+# business through POST /business; the e2e script then reads it from the database.
+# env: NEW_EMAIL, BUSINESS_NAME, CATEGORY, MAILPIT_URL
+appId: host.exp.Exponent
+---
+- openLink: "exp://127.0.0.1:8081/--/settings"
+- scrollUntilVisible:
+    element: "Sign out"
+    timeout: 30000
+- tapOn: "Sign out"
+- extendedWaitUntil:
+    visible: "Create your account"
+    timeout: 60000
+- runScript: clear-mailpit.js
+# The form keeps the last owner's name and email: clear each field before typing.
+- tapOn: "Your name"
+- eraseText: 80
+- inputText: "E2E Owner"
+- tapOn: "Email"
+- eraseText: 80
+- inputText: ${NEW_EMAIL}
+- tapOn: "Create your account"
+- tapOn: "I accept the terms and the privacy policy."
+- tapOn: "Send code"
+- extendedWaitUntil:
+    visible: "Enter the code"
+    timeout: 30000
+- retry:
+    maxRetries: 3
+    commands:
+      - runScript: mailpit-code.js
+      - assertTrue:
+          condition: ${output.code}
+          label: Mailpit has the sign-up code
+- tapOn: "Verification code"
+- inputText: ${output.code}
+- tapOn:
+    text: "Verify"
+    optional: true
+- extendedWaitUntil:
+    visible: "Your business"
+    timeout: 30000
+- tapOn: "Business name"
+- eraseText: 80
+- inputText: ${BUSINESS_NAME}
+- tapOn: "Category"
+- eraseText: 40
+- inputText: ${CATEGORY}
+- tapOn: "Your business"
+- takeScreenshot: live-onboarding-business
+- tapOn: "Continue"
+- extendedWaitUntil:
+    visible: "Prices and fees"
+    timeout: 30000
+- takeScreenshot: live-onboarding-prices
+- tapOn: "Continue"
+- extendedWaitUntil:
+    visible: "Hours and area"
+    timeout: 30000
+- tapOn: "Use my current location"
+- extendedWaitUntil:
+    visible: "Location saved."
+    timeout: 30000
+- takeScreenshot: live-onboarding-area
+- tapOn: "Finish"
+- extendedWaitUntil:
+    visible: ".*is live on Zukki.*"
+    timeout: 30000
+- takeScreenshot: live-onboarding-live

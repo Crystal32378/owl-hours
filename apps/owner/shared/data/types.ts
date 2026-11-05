@@ -8,9 +8,14 @@ export type MoneyRange = { min: Money; max: Money };
 
 // ---------- business (tenant) ----------
 export type PriceItem = { id: ID; label: string; amount: Money; from: boolean };     // from=true → "from $60"
-export type ExtraFee = { id: ID; label: string; amount: Money | "at_cost"; window?: string }; // window: "10 PM–7 AM"
+// window: "10 PM–7 AM". atNight: the night fee the quote adds inside its window
+// (kind night_fee); the demo seed leaves it out and marks night fees by their window.
+export type ExtraFee = { id: ID; label: string; amount: Money | "at_cost"; window?: string; atNight?: boolean };
+// An extra fee as the prices screens edit it and PUT /business/fees saves it.
+export type FeeInput = { id: ID; label: string; amount: Money; atNight: boolean };
 export type Hours = { summary: string; nightUrgent: boolean };                      // "Mon–Sat, 8 AM–8 PM"
-export type ServiceArea = { center: { lat: number; lng: number }; radiusKm: number };
+export type GeoPoint = { lat: number; lng: number };
+export type ServiceArea = { center: GeoPoint; radiusKm: number };
 
 export type Business = {
   id: ID;
@@ -47,7 +52,7 @@ export type RequestOffer = {
   customerName: string;             // first name + initial only: "Ana L."
   title: string;                    // "Leaking toilet, water reaching the hallway"
   urgent: boolean;
-  distanceKm: number;
+  distanceKm: number | null;        // null when the customer has not shared a location
   approxLocation: string;           // exact address only after the customer approves a quote
   media: Media[];
   customerQuote?: string;           // transcript of the voice note
@@ -82,6 +87,9 @@ export type Conversation = {
   statusLine: string;               // "visit 12:55 AM", "waiting for you", "quote sent", "done"
   lastMessage: Message;
   unread: number;
+  jobId?: ID;                       // the job the business opened by accepting, when it has one
+  acceptedAt?: ISODate;             // when the business accepted the offer
+  jobTakesQuote?: boolean;          // live: the job is still before the customer's approval; the demo leaves it unset
 };
 
 // ---------- jobs ----------
@@ -110,7 +118,8 @@ export type Job = {
 };
 
 // ---------- content ----------
-export type PostStatus = "draft" | "scheduled" | "published" | "rejected";
+// "approved": the owner approved it on the live API; nothing has been posted yet.
+export type PostStatus = "draft" | "approved" | "scheduled" | "published" | "rejected";
 export type PostDraft = {
   id: ID;
   title: string;                    // internal label: "Fixed in 91 minutes"

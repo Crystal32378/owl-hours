@@ -1,0 +1,56 @@
+hola
+---
+Hi, I'm Zukki, an AI assistant that finds you a local business and connects you with it. A person from the business confirms every request.
+---
+Se está saliendo el agua y ya está llegando al piso
+---
+What are you looking for? You can also send a photo, a video or a voice note.
+Only businesses open now and near you
+See options
+---
+One moment, I'm looking at what you sent.
+---
+Veo agua goteando del tubo bajo el lavabo y acumulada en el mueble. No use ese lavabo y seque el agua solo si puede hacerlo con seguridad.
+---
+Let's stop the water first: turn this valve clockwise. Any outlets or cables near the water?
+Done, no cables
+I can't find it
+---
+Done, no cables
+---
+Good, the water is off. Now share your location so I can find a plumber who is open near you. The business only sees the exact address after you approve a visit.
+Send location
+---
+Shared location: Av. Tulum, Cancún
+---
+Thanks. I'm finding a plumber who is open near you.
+---
+Northside Plumbing
+★ 4.9 (128) · 1.2 km
+
+Visit: $45
+Night fee (10 PM–7 AM): +$25
+Leak repair: from $60
+Can arrive: in about 40 min
+Closest plumber taking night jobs right now
+Connect me
+Show another option
+---
+Connect me
+---
+I sent your request to Northside Plumbing. They have up to 5 minutes to accept.
+---
+Northside Plumbing accepted. You're now talking with their team. Type Zukki anytime to talk to me.
+---
+Quote from Northside Plumbing
+Northside Plumbing · arrives 11:00–12:00 AM
+
+Fuga de agua bajo lavabo: $130–160
+Estimated total: $130–160
+
+You pay Northside Plumbing after the repair.
+Nothing is booked until you approve
+Approve visit
+Ask a question
+---
+Approve visit

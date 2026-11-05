@@ -11,16 +11,22 @@
 --   runs only (handoff section 10).
 -- Owners sign in with an emailed 6-digit code; no passwords are seeded. Seeded
 -- owners already have an email, so code sign-in matches their auth user.
+-- Supabase Auth reads the token columns as strings: NULL makes /otp fail with
+-- "Database error finding user", so they are seeded empty.
 
 insert into auth.users (id, instance_id, aud, role, email, email_confirmed_at,
-                        raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
+                        raw_app_meta_data, raw_user_meta_data, created_at, updated_at,
+                        confirmation_token, recovery_token, email_change_token_new, email_change)
 values
   ('20000000-0000-4000-8000-000000000001', '00000000-0000-0000-0000-000000000000', 'authenticated',
    'authenticated', 'mario@northside.example', now(), '{"provider":"email","providers":["email"]}',
-   '{}', now(), now()),
+   '{}', now(), now(), '', '', '', ''),
   ('20000000-0000-4000-8000-000000000002', '00000000-0000-0000-0000-000000000000', 'authenticated',
    'authenticated', 'owner@eastside.example', now(), '{"provider":"email","providers":["email"]}',
-   '{}', now(), now());
+   '{}', now(), now(), '', '', '', ''),
+  ('20000000-0000-4000-8000-000000000003', '00000000-0000-0000-0000-000000000000', 'authenticated',
+   'authenticated', 'owner@murphy.example', now(), '{"provider":"email","providers":["email"]}',
+   '{}', now(), now(), '', '', '', '');
 
 -- Northside "can arrive in about 40 min" (ZkWaMatch); Eastside's 55 is a placeholder.
 insert into public.tenants (id, slug, name, short_name, category, timezone, location, rating, review_count,
@@ -31,12 +37,16 @@ values
   ('10000000-0000-4000-8000-000000000002', 'eastside', 'Eastside Plumbing', 'Eastside', 'plumbing', 'America/Cancun',
    private.geo_point(21.1619, -86.8283), 4.8, 96, true, true, 55, null),
   ('10000000-0000-4000-8000-000000000003', 'lagoon', 'Lagoon Plumbing', 'Lagoon', 'plumbing', 'America/Cancun',
-   private.geo_point(21.1547, -86.8515), 4.6, 41, true, false, null, null);
+   private.geo_point(21.1547, -86.8515), 4.6, 41, true, false, null, null),
+  -- Fictional business at 123 Demo Street, Xinyi District; the point is a placeholder in Xinyi.
+  ('10000000-0000-4000-8000-000000000004', 'murphy', 'Murphy Plumbing (Demo)', 'Murphy', 'plumbing', 'Asia/Taipei',
+   private.geo_point(25.0330, 121.5654), null, 0, true, true, null, null);
 
 insert into public.tenant_users (tenant_id, user_id, role, display_name)
 values
   ('10000000-0000-4000-8000-000000000001', '20000000-0000-4000-8000-000000000001', 'owner', 'Mario R.'),
-  ('10000000-0000-4000-8000-000000000002', '20000000-0000-4000-8000-000000000002', 'owner', 'Eastside owner');
+  ('10000000-0000-4000-8000-000000000002', '20000000-0000-4000-8000-000000000002', 'owner', 'Eastside owner'),
+  ('10000000-0000-4000-8000-000000000004', '20000000-0000-4000-8000-000000000003', 'owner', 'Murphy owner');
 
 -- Mario owns Northside and is also its technician ("Mario R." on the quote).
 insert into public.technicians (id, tenant_id, display_name, user_id)
@@ -55,15 +65,22 @@ values
   ('10000000-0000-4000-8000-000000000002', 'Night fee', 'night_fee', 30, 30, '10 PM-7 AM'),
   ('10000000-0000-4000-8000-000000000002', 'Leak repair', 'repair_range', 60, 90, null),
   ('10000000-0000-4000-8000-000000000003', 'Visit', 'callout', 40, 40, null),
-  ('10000000-0000-4000-8000-000000000003', 'Leak repair', 'repair_range', 55, 85, null);
+  ('10000000-0000-4000-8000-000000000003', 'Leak repair', 'repair_range', 55, 85, null),
+  -- Listed prices; Ana's $45 + $25 sample is a discount, so it is not a rule. The window is an assumption.
+  ('10000000-0000-4000-8000-000000000004', 'Call-out fee', 'callout', 50, 50, null),
+  ('10000000-0000-4000-8000-000000000004', 'Nighttime surcharge', 'night_fee', 30, 30, '10 PM-7 AM'),
+  ('10000000-0000-4000-8000-000000000004', 'Repair work', 'repair_range', 60, 90, null);
 
--- Northside Mon-Sat 8-18, Eastside Mon-Fri 8-17, Lagoon every day 7-19.
+-- Northside Mon-Sat 8-18, Eastside Mon-Fri 8-17, Lagoon every day 7-19, Murphy all day.
+-- opens and closes must differ, so "all day" ends at 23:59.
 insert into public.business_hours (tenant_id, weekday, opens, closes)
 select '10000000-0000-4000-8000-000000000001'::uuid, d, '08:00'::time, '18:00'::time from generate_series(1, 6) d
 union all
 select '10000000-0000-4000-8000-000000000002'::uuid, d, '08:00'::time, '17:00'::time from generate_series(1, 5) d
 union all
-select '10000000-0000-4000-8000-000000000003'::uuid, d, '07:00'::time, '19:00'::time from generate_series(0, 6) d;
+select '10000000-0000-4000-8000-000000000003'::uuid, d, '07:00'::time, '19:00'::time from generate_series(0, 6) d
+union all
+select '10000000-0000-4000-8000-000000000004'::uuid, d, '00:00'::time, '23:59'::time from generate_series(0, 6) d;
 
 insert into public.service_areas (tenant_id, center, radius_km)
 select id, location, 8 from public.tenants;

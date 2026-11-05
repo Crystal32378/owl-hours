@@ -6,6 +6,7 @@ import assert from "node:assert/strict";
 import { business as mockBusiness } from "../../../shared/data/mock.ts";
 import type { PriceItem } from "../../../shared/data/types.ts";
 import { createBusinessService, createFakeBusinessClient } from "./businessService.ts";
+import { hoursSummary } from "../lib/hoursSummary.ts";
 import type { BusinessSettings } from "./businessService.ts";
 
 function buildService() {
@@ -49,6 +50,34 @@ describe("businessService.savePrices", () => {
   }
 });
 
+describe("businessService.saveFees", () => {
+  it("round-trips the demo fees: edited, added and removed fees read back, parts at cost stays", async () => {
+    const service = buildService();
+    const edited = [
+      { id: "f1", label: "Late night", amount: 30, atNight: true },
+      { id: "f-new-1", label: "Holiday", amount: 20, atNight: false },
+    ];
+
+    const saved = await service.saveFees(edited);
+
+    const expected = [
+      { id: "f1", label: "Late night", amount: 30, atNight: true, window: "10 PM–7 AM" },
+      { id: "f-new-1", label: "Holiday", amount: 20, atNight: false },
+      { id: "f3", label: "Parts", amount: "at_cost" },
+    ];
+    assert.deepEqual(saved?.fees, expected);
+    assert.deepEqual((await service.getBusiness()).fees, expected);
+  });
+
+  it("saves nothing for a fee without a name or at $0", async () => {
+    const service = buildService();
+
+    assert.equal(await service.saveFees([{ id: "f1", label: "", amount: 25, atNight: true }]), null);
+    assert.equal(await service.saveFees([{ id: "f1", label: "Night", amount: 0, atNight: true }]), null);
+    assert.deepEqual((await service.getBusiness()).fees, mockBusiness.fees);
+  });
+});
+
 describe("businessService settings", () => {
   it("starts as the OwSettings design shows: on, on, on, off", async () => {
     assert.deepEqual(await buildService().getSettings(), {
@@ -83,5 +112,32 @@ describe("businessService isolation", () => {
     await service.savePrices(changedPrices(0));
 
     assert.deepEqual(mockBusiness, snapshot);
+  });
+});
+
+describe("businessService hours", () => {
+  it("round-trips saved hours and updates the Hours row summary", async () => {
+    const service = createBusinessService(createFakeBusinessClient());
+    const hours = [{ weekday: 2, opens: "20:00", closes: "06:00" }];
+
+    assert.deepEqual(await service.saveHours(hours), hours);
+
+    assert.deepEqual(await service.getHours(), hours);
+    assert.equal((await service.getBusiness()).hours.summary, "Tue, 8 PM–6 AM");
+  });
+
+  it("saves nothing when a shift opens and closes at the same time", async () => {
+    const service = createBusinessService(createFakeBusinessClient());
+    const before = await service.getHours();
+
+    assert.equal(await service.saveHours([{ weekday: 2, opens: "09:00", closes: "09:00" }]), null);
+
+    assert.deepEqual(await service.getHours(), before);
+  });
+
+  it("starts the demo at the hours its summary reads", async () => {
+    const service = createBusinessService(createFakeBusinessClient());
+
+    assert.equal(hoursSummary(await service.getHours()), (await service.getBusiness()).hours.summary);
   });
 });

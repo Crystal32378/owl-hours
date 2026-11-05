@@ -5,6 +5,7 @@ import assert from "node:assert/strict";
 import type { OutgoingMessage } from "@owl-hours/whatsapp";
 import { createApp } from "../src/index.ts";
 import type { V1Deps } from "../src/routes/v1.ts";
+import { WhatsAppApiError } from "@owl-hours/whatsapp";
 import { drainOutbox, renderOutbound, type OutboxRow } from "../src/whatsapp/outbox.ts";
 import { fakeSupabase, type FakeCall, type FakeReply } from "./helpers/fake-supabase.ts";
 
@@ -148,8 +149,8 @@ describe("drainOutbox", () => {
     assert.equal((sent[0]?.text as { body: string }).body, "*Northside Plumbing · Mario*\nOn my way, 20 minutes.");
     const results = calls.filter((c) => c.path.endsWith("/record_outbound_result")).map((c) => c.body);
     assert.deepEqual(results, [
-      { p_message_id: MSG_A, p_wa_message_id: "wamid.OUT1" },
-      { p_message_id: MSG_B, p_wa_message_id: null },
+      { p_message_id: MSG_A, p_wa_message_id: "wamid.OUT1", p_retry: false },
+      { p_message_id: MSG_B, p_wa_message_id: null, p_retry: false },
     ]);
   });
 
@@ -161,7 +162,21 @@ describe("drainOutbox", () => {
       log: quiet,
     });
     assert.deepEqual(result, { sent: 0, failed: 1 });
-    assert.deepEqual(calls.at(-1)?.body, { p_message_id: MSG_A, p_wa_message_id: null });
+    assert.deepEqual(calls.at(-1)?.body, { p_message_id: MSG_A, p_wa_message_id: null, p_retry: false });
+  });
+
+  it("asks for a retry when WhatsApp is busy, down or does not answer", async () => {
+    const failures: unknown[] = [
+      new WhatsAppApiError(429, 130429, "WhatsApp API 429: rate limit"),
+      new WhatsAppApiError(503, null, "WhatsApp API 503: unavailable"),
+      Object.assign(new Error("The operation was aborted due to timeout"), { name: "TimeoutError" }),
+      new TypeError("fetch failed"),
+    ];
+    for (const failure of failures) {
+      const { client, calls } = db((call) => (call.path.endsWith("/claim_outbox") ? { body: [row()] } : undefined));
+      await drainOutbox({ db: client, client: { send: async () => { throw failure; } }, log: quiet });
+      assert.deepEqual(calls.at(-1)?.body, { p_message_id: MSG_A, p_wa_message_id: null, p_retry: true }, String(failure));
+    }
   });
 
   it("does nothing when the outbox is empty", async () => {

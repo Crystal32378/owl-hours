@@ -9,7 +9,11 @@ export const settingsCopys = {
   settingsTitle: "Settings",
   requestsSection: "Requests",
   takingRequestsDesc: "Turn off when you can't take new jobs",
-  timeToAcceptDetail: "Urgent: 5 min · other requests: 30 min. Then Zukki asks another business.",
+  // "Urgent: 5 min · other requests: 30 min. Then Zukki asks another business."
+  // composed in lib/settingsText.ts around the business's own windows.
+  urgentWindowWord: "Urgent:",
+  otherWindowWord: "other requests:",
+  afterWindowSentence: "Then Zukki asks another business.",
   notificationsSection: "Notifications",
   urgentRequestsDesc: "Loud sound and vibration",
   ringOnSilentDesc: "Only for urgent requests, 10 PM–7 AM",

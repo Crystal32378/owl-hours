@@ -1,3 +1,4 @@
+import { firstName } from "../../../shared/lib/firstName.ts";
 import { OWNER_TEXT, POLISHED_TEXT, anaJob, business, conversations as seedConversations, offers as seedOffers } from "../../../shared/data/mock.ts";
 import { createThreadStore } from "../../../shared/data/threadStore.ts";
 import type { ThreadStore } from "../../../shared/data/threadStore.ts";
@@ -6,12 +7,15 @@ import { buildAsWrittenMessage, buildChosenMessage } from "../lib/ownerDelivery.
 import type { MessageStamp, PolishChoice } from "../lib/ownerDelivery.ts";
 
 export type ConversationsClient = {
+  listConversations(): Promise<Conversation[]>; // newest first
   findConversation(id: ID): Promise<Conversation | null>;
   findQuoteSuggestion(conversationId: ID): Promise<QuoteSuggestion | null>;
   findBusinessName(): Promise<string>;
   listMessages(conversationId: ID): Promise<Message[]>;
   saveMessage(conversationId: ID, message: Message): Promise<void>;
-  polish(text: string): Promise<PolishPreview>;
+  polish(text: string, conversationId: ID): Promise<PolishPreview>; // the live API drafts per conversation
+  // Forgets a polish draft the owner left unsent; only a client that keeps drafts needs it.
+  discardDraft?(conversationId: ID): void;
 };
 
 // Zukki's suggestion for a conversation that has a job: which job, and the quote it proposes.
@@ -26,6 +30,7 @@ export type ConversationsDeps = {
 export type SendResult = { sent: Message } | PolishPreview;
 
 export type ConversationsService = {
+  getConversations(): Promise<Conversation[]>; // the Chats list
   getConversation(id: ID): Promise<Conversation | null>;
   getQuoteSuggestion(conversationId: ID): Promise<QuoteSuggestion | null>;
   getBusinessName(): Promise<string>; // the name in the quote bubble's header
@@ -52,6 +57,8 @@ export function createConversationsService(
   }
 
   return {
+    getConversations: () => client.listConversations(),
+
     getConversation: (id) => client.findConversation(id),
 
     getQuoteSuggestion: (conversationId) => client.findQuoteSuggestion(conversationId),
@@ -63,8 +70,9 @@ export function createConversationsService(
 
     sendMessage: async (conversationId, text, { polish }) => {
       if (!(await hasConversation(conversationId))) return null;
-      if (polish) return client.polish(text);
+      if (polish) return client.polish(text, conversationId);
 
+      client.discardDraft?.(conversationId);
       return { sent: await append(conversationId, buildAsWrittenMessage(nextStamp(), text)) };
     },
 
@@ -85,17 +93,27 @@ export function createFakeConversationsClient(deps: Partial<FakeConversationsCli
   const conversationsById = new Map(structuredClone(seedConversations).map((conversation) => [conversation.id, conversation]));
 
   return {
+    listConversations: async () => structuredClone([...conversationsById.values()]),
     findConversation: async (id) => structuredClone(conversationsById.get(id) ?? null),
     listMessages: async (conversationId) => threads.messages(conversationId),
     findQuoteSuggestion: async (conversationId) => findDemoQuoteSuggestion(conversationsById.get(conversationId)),
     findBusinessName: async () => business.name,
     saveMessage: async (conversationId, message) => threads.append(conversationId, message),
-    polish: async (text) => ({
+    polish: async (text, conversationId) => ({
       original: text,
-      polished: text === OWNER_TEXT ? POLISHED_TEXT : text,
+      polished: text === OWNER_TEXT ? POLISHED_TEXT : politeDemoText(text, conversationsById.get(conversationId)?.customerName),
       language: "English",
     }),
   };
+}
+
+// The demo has no model behind it: a greeting and tidy punctuation show what polishing offers.
+function politeDemoText(text: string, customerName: string | undefined): string {
+  const trimmed = text.trim();
+  const sentence = trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
+  const ending = /[.!?]$/.test(sentence) ? "" : ".";
+  const isGreeted = /^(hi|hello|hola)\b/i.test(trimmed);
+  return customerName && !isGreeted ? `Hi ${firstName(customerName)}, ${sentence}${ending}` : `${sentence}${ending}`;
 }
 
 // Zukki suggests the quote of the offer behind a conversation, but only when that conversation has a job.

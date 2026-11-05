@@ -18,6 +18,7 @@ const conversationRow = z.object({
   state: z.string(),
   category: z.string().nullable(),
   urgency: z.enum(["now", "today", "week"]).nullable(),
+  title: z.string().nullish(),
 });
 
 const stepRow = z.object({ sender: z.enum(["customer", "zukki", "owner"]), kind: z.string(), payload: payloadSchema });
@@ -35,7 +36,7 @@ export function createConversationStore(db: SupabaseClient): ConversationStore {
   return {
     async facts(conversationId) {
       const conversation = conversationRow.parse(
-        unwrap(await db.from("conversations").select("state, category, urgency").eq("id", conversationId).single()),
+        unwrap(await db.from("conversations").select("state, category, urgency, title").eq("id", conversationId).single()),
       );
       const steps = z.array(stepRow).parse(
         unwrap(
@@ -141,6 +142,7 @@ export function readFacts(
     safety,
     locationAsked,
     hasLocation,
+    hasTitle: Boolean(conversation.title),
   };
 }
 

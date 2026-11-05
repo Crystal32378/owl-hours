@@ -14,6 +14,7 @@
     "test:owner": "turbo run test --filter=@owl-hours/owner",
     "test:shared": "turbo run test --filter=@owl-hours/shared",
     "test:db": "bash scripts/db-test.sh",
+    "test:local": "node --test scripts/local/*.test.mjs",
     "typecheck": "turbo run typecheck",
     "typecheck:api": "turbo run typecheck --filter=@owl-hours/api",
     "typecheck:owner": "turbo run typecheck --filter=@owl-hours/owner",
@@ -23,6 +24,7 @@
     "build:owner": "turbo run build --filter=@owl-hours/owner",
     "dev": "turbo run dev",
     "dev:api": "turbo run dev --filter=@owl-hours/api",
+    "dev:api:local": "turbo run dev:local --filter=@owl-hours/api",
     "dev:landing": "turbo run dev --filter=@owl-hours/landing",
     "dev:owner": "turbo run dev --filter=@owl-hours/owner"
   },

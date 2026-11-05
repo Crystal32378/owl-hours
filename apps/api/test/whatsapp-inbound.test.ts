@@ -170,6 +170,28 @@ describe("handleEvents", () => {
     assert.deepEqual(calls[0]?.body, { p_wa_message_id: "wamid.OUT", p_status: "read" });
   });
 
+  it("marks a message handled once Zukki's turn is done, so restart recovery skips it", async () => {
+    const { deps, calls, runTasks } = setup(() => ({ body: inboundRow() }));
+    await handleEvents(deps, [message({ kind: "text", text: "My toilet is leaking" })]);
+    assert.equal(calls.some((c) => c.method === "PATCH"), false, "not before the turn runs");
+    await runTasks();
+    const mark = calls.find((c) => c.method === "PATCH" && c.path === "/rest/v1/messages");
+    assert.ok(mark, "handled mark written");
+    assert.equal(mark.query.get("wa_message_id"), "eq.wamid.1");
+    assert.equal(mark.query.get("sender"), "eq.customer");
+    assert.match(String((mark.body as { zukki_handled_at: string }).zukki_handled_at), /^\d{4}-\d\d-\d\dT/);
+  });
+
+  it("leaves a message unmarked when the turn fails, so recovery retries it", async () => {
+    const { deps, calls, runTasks } = setup(() => ({ body: inboundRow() }));
+    deps.respond = async () => {
+      throw new Error("database down");
+    };
+    await handleEvents(deps, [message({ kind: "text", text: "hi" })]);
+    await assert.rejects(runTasks(), /database down/);
+    assert.equal(calls.some((c) => c.method === "PATCH"), false);
+  });
+
   it("hands each new message to Zukki on the conversation's queue, once", async () => {
     const { deps, queuedFor, turns, runTasks } = setup(() => ({ body: inboundRow() }));
     await handleEvents(deps, [message({ kind: "text", text: "My toilet is leaking" })]);

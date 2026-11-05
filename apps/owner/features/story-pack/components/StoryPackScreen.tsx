@@ -3,13 +3,18 @@
 import '@astryxdesign/core/reset.css';
 import '@astryxdesign/core/astryx.css';
 import '@astryxdesign/theme-neutral/theme.css';
-import '@astryxdesign/theme-neutral/fonts.css';
+import '../../../shared/theme/figtreeStylesheet';
 import '../../../shared/theme/zukki-theme.css';
 
 import type { DOMProps } from 'expo/dom';
 import { Theme } from '@astryxdesign/core/theme';
 import { neutralTheme } from '@astryxdesign/theme-neutral/built';
-import { Layout, LayoutContent, LayoutFooter, VStack } from '@astryxdesign/core/Layout';
+import {
+  Layout,
+  LayoutContent,
+  LayoutFooter,
+  VStack,
+} from '@astryxdesign/core/Layout';
 import { Card } from '@astryxdesign/core/Card';
 import { Heading, Text } from '@astryxdesign/core/Text';
 import type { StoryTargets } from '../lib/storyPack.ts';
@@ -40,15 +45,30 @@ export default function StoryPackScreen(
   },
 ) {
   const selected = props.selectedPack;
-  const { draft, dirty, setDraft, acceptSaved } = useStoryPackEditor(selected);
-  const { saving, approving, approvalError, saveDraft, approveDraft, clearApprovalError } =
-    useStoryPackDraft({
-      draft,
-      sources: props.sources,
-      updateDraft: props.updateDraft,
-      approve: props.approve,
-      acceptSaved,
-    });
+  const {
+    draft,
+    dirty,
+    setDraft,
+    acceptSaved,
+    expectedUpdatedAt,
+    canExport,
+    discardChanges,
+  } = useStoryPackEditor(selected);
+  const {
+    saving,
+    approving,
+    approvalError,
+    saveDraft,
+    approveDraft,
+    clearApprovalError,
+  } = useStoryPackDraft({
+    draft,
+    expectedUpdatedAt,
+    sources: props.sources,
+    updateDraft: props.updateDraft,
+    approve: props.approve,
+    acceptSaved,
+  });
   const { exporting, exportError, exportPack, clearExportError } =
     useStoryPackExport({
       authorize: props.prepareHandoff,
@@ -165,7 +185,11 @@ export default function StoryPackScreen(
               <VStack gap={5}>
                 <StoryPackHeader
                   showBack={Boolean(selected)}
-                  backDisabled={isBackNavigationDisabled({ saving, exporting, approving })}
+                  backDisabled={isBackNavigationDisabled({
+                    saving,
+                    exporting,
+                    approving,
+                  })}
                   onBack={() => {
                     clearApprovalError();
                     void props.selectPack(null);
@@ -191,6 +215,14 @@ export default function StoryPackScreen(
                 />
                 {renderWorkspaceView()}
                 <Text type="supporting">{copy.metaHandoff}</Text>
+                {canViewWorkspace && (
+                  <Card padding={3}>
+                    <VStack gap={2}>
+                      <Heading level={2}>{copy.deletionScopeTitle}</Heading>
+                      <Text>{copy.deletionScope}</Text>
+                    </VStack>
+                  </Card>
+                )}
               </VStack>
             </LayoutContent>
           }
@@ -201,7 +233,12 @@ export default function StoryPackScreen(
                   draft={draft}
                   onSave={saveDraft}
                   onApprove={approveDraft}
-                  onPrepare={exportPack}
+                  onPrepare={async () => {
+                    if (canExport) await exportPack();
+                  }}
+                  dirty={dirty}
+                  canExport={canExport}
+                  onDiscard={discardChanges}
                   exporting={exporting}
                   saving={saving}
                   approving={approving}

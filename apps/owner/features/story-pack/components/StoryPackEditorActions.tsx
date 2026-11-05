@@ -10,6 +10,9 @@ export type StoryPackEditorActionsProps = {
   exporting: boolean;
   saving: boolean;
   approving: boolean;
+  dirty: boolean;
+  canExport: boolean;
+  onDiscard: () => void;
 };
 
 // Bottom-bar actions: the screen's one primary button is Approve, or Download once approved.
@@ -21,11 +24,23 @@ export function StoryPackEditorActions({
   exporting,
   saving,
   approving,
+  dirty,
+  canExport,
+  onDiscard,
 }: StoryPackEditorActionsProps) {
   if (draft.status === 'draft') {
     const hasFormat = draft.platforms.facebook || draft.platforms.instagram;
     return (
       <div className="zukki-actions">
+        {dirty && (
+          <Button
+            label={copy.discardChanges}
+            variant="secondary"
+            size="lg"
+            isDisabled={saving || approving}
+            onClick={onDiscard}
+          />
+        )}
         <Button
           label={copy.save}
           variant="secondary"
@@ -51,17 +66,28 @@ export function StoryPackEditorActions({
 
   if (draft.status === 'approved') {
     return (
-      <Button
-        label={copy.downloadLabel}
-        variant="primary"
-        size="lg"
-        width="100%"
-        isLoading={exporting}
-        isDisabled={!draft.canHandoff}
-        onClick={() => {
-          void onPrepare();
-        }}
-      />
+      <div className="zukki-actions">
+        {dirty && (
+          <Button
+            label={copy.discardChanges}
+            variant="secondary"
+            size="lg"
+            isDisabled={saving || exporting}
+            onClick={onDiscard}
+          />
+        )}
+        <Button
+          label={copy.downloadLabel}
+          variant="primary"
+          size="lg"
+          width="100%"
+          isLoading={exporting}
+          isDisabled={!canExport}
+          onClick={() => {
+            void onPrepare();
+          }}
+        />
+      </div>
     );
   }
 

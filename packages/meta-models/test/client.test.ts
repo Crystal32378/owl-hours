@@ -35,6 +35,20 @@ describe("createMetaClient", () => {
     });
   });
 
+  it("gives up on a call that hangs, so one stuck model call cannot silence a chat", async () => {
+    // Never answers; only the abort signal ends it.
+    const hanging = ((_url: string | URL | Request, init?: RequestInit) =>
+      new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener("abort", () => reject(init.signal?.reason));
+      })) as typeof fetch;
+    const client = createMetaClient({ apiKey: "k", fetch: hanging, timeoutMs: 30 });
+    // AbortSignal.timeout does not hold the event loop open (the server does).
+    const keepAlive = setTimeout(() => {}, 5000);
+
+    await assert.rejects(client.postJson("/chat/completions", {}), /\/chat\/completions timed out after 30 ms/);
+    clearTimeout(keepAlive);
+  });
+
   it("refuses to start without an API key", () => {
     assert.throws(() => createMetaClient({ apiKey: "" }), /MODEL_API_KEY/);
   });

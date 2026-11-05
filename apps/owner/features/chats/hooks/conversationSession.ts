@@ -1,6 +1,6 @@
 // Framework-free session of one chat: loads it, drives the composer machine, talks to the service.
 // useConversation is a thin React adapter over it.
-import type { ID, Message } from "../../../shared/data/types.ts";
+import type { Conversation, ID, Message } from "../../../shared/data/types.ts";
 import { firstName } from "../lib/customerName.ts";
 import { moneyRangeText } from "../../../shared/lib/moneyText.ts";
 import type { ChatView, ConversationSnapshot, SendOutcome } from "../lib/chatView.ts";
@@ -24,7 +24,13 @@ export type ConversationSession = {
 
 type LoadState =
   | { status: "loading" | "not_found" | "failed" }
-  | { status: "ready"; customerName: string; messages: Message[]; suggestion: QuoteSuggestion | null; businessName: string | null };
+  | {
+      status: "ready";
+      conversation: Conversation;
+      messages: Message[];
+      suggestion: QuoteSuggestion | null;
+      businessName: string | null;
+    };
 
 export function createConversationSession(service: ConversationsService, id: ID): ConversationSession {
   let loadState: LoadState = { status: "loading" };
@@ -162,7 +168,7 @@ async function fetchChat(service: ConversationsService, id: ID): Promise<LoadSta
     ]);
     if (!conversation || !messages) return { status: "not_found" };
 
-    return { status: "ready", customerName: conversation.customerName, messages, suggestion, businessName };
+    return { status: "ready", conversation, messages, suggestion, businessName };
   } catch {
     return { status: "failed" };
   }
@@ -193,21 +199,26 @@ function buildSnapshot(loadState: LoadState, composer: ComposerState): Conversat
 }
 
 function buildChatView(
-  { customerName, messages, suggestion, businessName }: Extract<LoadState, { status: "ready" }>,
+  { conversation, messages, suggestion, businessName }: Extract<LoadState, { status: "ready" }>,
   composer: ComposerState,
 ): ChatView {
+  const { customerName } = conversation;
+  const jobId = conversation.jobId ?? suggestion?.jobId ?? null;
+  const isQuoteSent = hasSentQuote(messages);
   return {
     customerName,
     customerFirstName: firstName(customerName),
-    acceptedAt: messages[0]?.sentAt ?? null,
+    // The demo's conversations carry no accept time: its chats open with the accept.
+    acceptedAt: conversation.acceptedAt ?? messages[0]?.sentAt ?? null,
     thread: messages.map((message) => ({
       ...message,
       deliveryLabel: deliveryLabel(message),
       quoteCard: quoteCardOf(message, businessName),
     })),
     step: composer.step,
-    jobId: suggestion?.jobId ?? null,
-    suggestedQuoteText: suggestion && !hasSentQuote(messages) ? moneyRangeText(suggestion.suggestedQuote) : null,
+    jobId,
+    suggestedQuoteText: suggestion && !isQuoteSent ? moneyRangeText(suggestion.suggestedQuote) : null,
+    canSendQuote: jobId !== null && !isQuoteSent && conversation.jobTakesQuote !== false,
     preview: composer.preview,
     polishEnabled: composer.polishEnabled,
     polishFailed: composer.polishFailed,

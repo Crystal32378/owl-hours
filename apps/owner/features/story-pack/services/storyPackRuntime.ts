@@ -6,7 +6,7 @@ import { createFakeStoryPackClient, createStoryPackService, type StoryPackServic
 
 export type StoryPackDeps = {
   mode:'live'|'demo'|'unconfigured';
-  auth:OwnerSessionService|null;
+  auth:Pick<OwnerSessionService, "restore" | "subscribe" | "getAccessToken" | "signOut">|null;
   service:StoryPackService|null;
 };
 

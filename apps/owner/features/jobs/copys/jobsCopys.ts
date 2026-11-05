@@ -5,6 +5,7 @@ const copys = {
   // shared
   backLabel: "Back",
   somethingWentWrong: "Something went wrong.", // HANDOFF-RN-UI.md section 8, "Every screen also needs"
+  tryAgain: "Try again",
   // quote modal
   sendAQuote: "Send a quote",
   filledInByZukki: "Filled in by Zukki from your prices. Change anything.",
@@ -17,7 +18,7 @@ const copys = {
   sendQuote: "Send quote",
   minimum: "minimum",
   maximum: "maximum",
-  approvalNotice: (firstName: string) => `${firstName} approves it in WhatsApp. Nothing is booked until she does.`,
+  approvalNotice: (firstName: string) => `${firstName} approves it in WhatsApp. Nothing is booked until they do.`,
   // job detail
   jobTitleBar: "Job",
   viaZukki: "via Zukki",
@@ -31,6 +32,9 @@ const copys = {
   finish: "Finish",
   sharedAfterApproved: (firstName: string, distanceKm?: number) =>
     distanceKm === undefined ? `Shared after ${firstName} approved` : `Shared after ${firstName} approved · ${distanceKm} km`,
+  // timeline rows already reached on the live API (wording of the demo seed, shared/data/mock.ts)
+  youAcceptedTheRequest: "You accepted the request",
+  quoteSentAndApproved: "Quote sent and approved",
   // timeline rows still ahead
   onTheWay: "On the way",
   timelineDone: "Done",
@@ -47,7 +51,7 @@ const copys = {
   after: "After",
   addPhoto: "Add",
   total: "Total",
-  sharePhotosHint: "For posts. Only used if she says yes.",
+  sharePhotosHint: "For posts. Only used if they say yes.",
   markAsDone: "Mark as done",
   confirmFinalPrice: (firstName: string) =>
     `Confirm the final price. Zukki sends ${firstName} the receipt and asks for a review on WhatsApp.`,

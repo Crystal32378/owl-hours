@@ -3,7 +3,7 @@
 import '@astryxdesign/core/reset.css';
 import '@astryxdesign/core/astryx.css';
 import '@astryxdesign/theme-neutral/theme.css';
-import '@astryxdesign/theme-neutral/fonts.css';
+import '../../../shared/theme/figtreeStylesheet';
 import '../../../shared/theme/zukki-theme.css';
 import './verifyScreen.css';
 
@@ -123,11 +123,13 @@ export default function VerifyScreen(props: {
   }
 }
 
-const pageStyle = { display: "flex", flexDirection: "column", width: "100%", minHeight: "100dvh" } as const;
+// One viewport tall with a scrolling body, so the footer button stays reachable on short
+// windows: Expo web sets `overflow: hidden` on <body>.
+const pageStyle = { display: "flex", flexDirection: "column", width: "100%", height: "100dvh" } as const;
 
 const backRowStyle = { height: 52, paddingInline: 8, display: "flex", alignItems: "center" } as const;
 
-const bodyStyle = { flex: 1, paddingInline: 24, display: "flex", flexDirection: "column", gap: 18 } as const;
+const bodyStyle = { flex: 1, minHeight: 0, overflowY: "auto", paddingInline: 24, display: "flex", flexDirection: "column", gap: 18 } as const;
 
 const owlStyle = { display: "flex", justifyContent: "center" } as const;
 

@@ -8,6 +8,7 @@ import { useLive } from '../../features/onboarding/hooks/useLive';
 import { useAllowNotifications } from '../../features/notifications/hooks/useAllowNotifications';
 import { useOwnerAuth } from '../../features/auth/hooks/useOwnerAuth';
 import { resolveNext } from '../../features/onboarding/lib/setupSteps';
+import LoadingSkeleton from '../../shared/shell/LoadingSkeleton';
 
 export default function LiveRoute() {
   const insets = useSafeAreaInsets();
@@ -19,7 +20,7 @@ export default function LiveRoute() {
   if (live.status === 'failed') {
     return <OnboardingLoadError insets={safeInsets} onRetry={live.retry} dom={domHost} />;
   }
-  if (live.status !== 'ready') return null;
+  if (live.status !== 'ready') return <LoadingSkeleton />;
 
   const { view } = live;
   return (

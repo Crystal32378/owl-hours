@@ -14,4 +14,8 @@ describe("businessLinks", () => {
   it("sends the Edit prices and Add a service actions to the price editor", () => {
     assert.equal(businessLinks.prices, "business/prices");
   });
+
+  it("sends the Hours row to the hours editor", () => {
+    assert.equal(businessLinks.hours, "business/hours");
+  });
 });

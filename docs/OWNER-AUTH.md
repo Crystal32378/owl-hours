@@ -18,8 +18,12 @@ foreground refresh adapter. The provider hands the emailed-code send/verify to o
 - **Verify:** `verifyCode(email, code)` calls `supabase.auth.verifyOtp({ email, token: code, type: 'email' })`.
   The SDK stores the returned session through the owner storage below and emits it;
   the auth controller keeps it.
-- **Gate:** in live mode, a signed-out owner on any route outside `/onboarding/*` is
-  sent to `/onboarding/sign-up` once the stored session has been restored.
+- **Gate:** in live mode, a signed-out owner on any route other than the sign-in steps
+  (`/onboarding/intro`, `/onboarding/sign-up`, `/onboarding/verify`) is sent to
+  `/onboarding/sign-up` once the stored session has been restored. The setup steps
+  (business, prices, area, live) need the session, so the owner is sent back before
+  entering data, not after the last step. "Continue with Facebook" shows only in demo
+  mode: live mode has no Facebook sign-in.
 - **Demo mode:** without `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_ANON_KEY`
   there is no auth runtime: onboarding keeps the in-memory fake (`DEMO_CODE`), the
   demo owner name and demo email are prefilled on sign-up, and nothing is gated.
@@ -86,8 +90,7 @@ refresh; sign out/relaunch and verify the gate returns to sign-up.
   "That code didn't work. Try again."
 - In live mode the onboarding drafts (name, profile, prices, area) stay in memory;
   they are not saved to Supabase yet.
-- The auth gate leaves every `/onboarding/*` route open without a session, and a
-  protected screen renders for one frame before the redirect. Hold a splash until
+- A protected screen renders for one frame before the gate redirects. Hold a splash until
   the stored session is restored.
 
 References: [Supabase email OTP](https://supabase.com/docs/guides/auth/auth-email-passwordless),

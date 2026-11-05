@@ -26,7 +26,9 @@ values ('d0000000-0000-4000-8000-000000000091', '10000000-0000-4000-8000-0000000
         'Guard test draft', 'A sample story.', array['instagram']::public.social_platform[],
         '[{"title":"Before","body":"Leak"},{"title":"After","body":"Repaired"},{"title":"Contact","body":"Call us"}]'::jsonb);
 
-delete from public.jobs where id = '80000000-0000-4000-8000-000000000001';
+-- Historical tombstones remain guarded after the deletion policy changes.
+update public.content_drafts set source_job_id = null, deleted_at = now()
+ where source = 'story_pack' and source_job_id = '80000000-0000-4000-8000-000000000001';
 
 set local role authenticated;
 set local request.jwt.claims to :'mario';
@@ -67,7 +69,9 @@ values ('d0000000-0000-4000-8000-000000000092', '10000000-0000-4000-8000-0000000
         array['60000000-0000-4000-8000-000000000093'::uuid, '60000000-0000-4000-8000-000000000094'::uuid],
         'Update policy test draft', 'A sample story.', array['instagram']::public.social_platform[]);
 
-delete from public.jobs where id = '80000000-0000-4000-8000-000000000001';
+-- Historical tombstones remain guarded after the deletion policy changes.
+update public.content_drafts set source_job_id = null, deleted_at = now()
+ where source = 'story_pack' and source_job_id = '80000000-0000-4000-8000-000000000001';
 
 set local role authenticated;
 set local request.jwt.claims to :'mario';

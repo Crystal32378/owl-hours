@@ -124,5 +124,61 @@ function answerDemo(question: string): TestZukkiAnswer {
   }
   if (asked.includes("gas heater")) return { text: GAS_HEATER_ANSWER, sources: [] };
 
-  return { text: `That's not in ${business.name}'s services, so I'd suggest another business for that.`, sources: [] };
+  return (
+    answerFromDemoBusiness(asked) ?? {
+      text: `That's not in ${business.name}'s services, so I'd suggest another business for that.`,
+      sources: [],
+    }
+  );
+}
+
+// Enough keywords, in English and Spanish, that a question typed into the demo gets the demo's numbers.
+const DEMO_SERVICES = [
+  { price: "Leak repair", words: ["leak", "drip", "fuga", "gotea"] },
+  { price: "Unclog a drain", words: ["drain", "clog", "drenaje", "destap", "tapad"] },
+  { price: "Water heater install", words: ["water heater", "calentador"] },
+];
+const NIGHT_WORDS = ["night", "noche"];
+const HOURS_WORDS = ["hours", "open", "horario", "abren", "abierto"];
+const PRICE_WORDS = ["visit", "how much", "price", "cost", "cuánto", "cuanto", "precio", "visita"];
+
+function answerFromDemoBusiness(asked: string): TestZukkiAnswer | null {
+  const services = DEMO_SERVICES.filter((service) => mentions(asked, service.words));
+  const isAboutNight = mentions(asked, NIGHT_WORDS);
+  const isAboutHours = !isAboutNight && mentions(asked, HOURS_WORDS);
+  if (services.length === 0 && !isAboutNight && !isAboutHours) {
+    return mentions(asked, PRICE_WORDS) ? visitPriceAnswer() : null;
+  }
+
+  const parts = [
+    ...(services.length > 0 ? [{ source: "Visit", sentence: `The visit is $${priceOf("Visit")}.` }] : []),
+    ...services.map(({ price }) => ({ source: price, sentence: `${price} starts at $${priceOf(price)}.` })),
+    ...(isAboutNight ? [{ source: "Night fee", sentence: nightSentence() }] : []),
+    ...(isAboutHours ? [{ source: "Hours", sentence: `We're open ${business.hours.summary}, with urgent jobs at night.` }] : []),
+  ];
+  return {
+    text: [`${business.name} can help.`, ...parts.map((part) => part.sentence)].join(" "),
+    sources: parts.map((part) => part.source),
+  };
+}
+
+// No service named, and it may not be one the business offers: only the visit price is certain.
+function visitPriceAnswer(): TestZukkiAnswer {
+  return {
+    text: `A visit from ${business.name} is $${priceOf("Visit")}. Tell me what needs fixing and I'll give you its price.`,
+    sources: ["Visit"],
+  };
+}
+
+function mentions(asked: string, words: string[]): boolean {
+  return words.some((word) => asked.includes(word));
+}
+
+function priceOf(label: string): number | undefined {
+  return business.prices.find((price) => price.label === label)?.amount;
+}
+
+function nightSentence(): string {
+  const night = business.fees.find((fee) => fee.label === "Night");
+  return `There's a $${night?.amount} night fee, ${night?.window}.`;
 }

@@ -6,7 +6,7 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "test": "node --test test/client.test.ts test/signature.test.ts test/webhook.test.ts",
+    "test": "node --test test/client.test.ts test/signature.test.ts test/webhook.test.ts test/payloads.test.ts test/payload-limits.test.ts test/payload-variants.test.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {

@@ -5,7 +5,7 @@ import type { PolishChoice } from "../lib/ownerDelivery.ts";
 import type { ConversationsService } from "../services/conversationsService.ts";
 import { createConversationSession } from "./conversationSession.ts";
 import type { ConversationSession } from "./conversationSession.ts";
-import { sharedDemoConversationsService } from "./demoConversationsService.ts";
+import { defaultConversationsService } from "./defaultConversationsService.ts";
 
 export type ConversationDeps = { service: ConversationsService };
 
@@ -31,7 +31,7 @@ const NOTHING_TO_RELOAD = async () => {};
 
 // The polish switch is session state, default off, until Settings can provide the default.
 export function useConversation(id: ID, deps?: Partial<ConversationDeps>): ConversationResult {
-  const [defaults] = useState(createDemoDeps);
+  const [defaults] = useState(createDefaultDeps);
   const session = useSession(deps?.service ?? defaults.service, id);
   const store = session ?? NO_SESSION;
   const snapshot = useSyncExternalStore(store.subscribe, store.getSnapshot);
@@ -69,6 +69,6 @@ function toConversation(session: ConversationSession, snapshot: ConversationSnap
   };
 }
 
-function createDemoDeps(): ConversationDeps {
-  return { service: sharedDemoConversationsService() };
+function createDefaultDeps(): ConversationDeps {
+  return { service: defaultConversationsService() };
 }

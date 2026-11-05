@@ -168,7 +168,7 @@ describe("/v1/owner Story Pack drafts", () => {
       if (request.path === "/rest/v1/rpc/owner_content_sources") return { body: [source] };
       return { status: 500, body: {} };
     });
-    const response = await call(`/content/drafts/${DRAFT}`, patchDraft({ caption: "Edited repair story." }));
+    const response = await call(`/content/drafts/${DRAFT}`, patchDraft({ caption: "Edited repair story.", expectedUpdatedAt: draftRow.updated_at }));
     assert.equal(response.status, 200);
     const update = calls.find((request) => request.path === "/rest/v1/content_drafts");
     assert.deepEqual(update?.body, { caption: "Edited repair story." });
@@ -313,10 +313,12 @@ describe("/v1/owner Story Pack drafts", () => {
     assert.equal(calls.some((request) => request.path === "/rest/v1/rpc/review_content_draft"), false);
   });
 
-  it("does not expose a publish operation from this API", async () => {
-    const { call } = setup(() => ({ body: {} }));
+  // Publishing now exists (odd/tasks/owner-meta-publishing.md S3); without the META_* settings it stays off.
+  it("does not publish while Facebook and Instagram are not configured", async () => {
+    const { call, calls } = setup(() => ({ body: {} }));
     const response = await call(`/content/drafts/${DRAFT}/publish`, { method: "POST" });
-    assert.equal(response.status, 404);
+    assert.equal(response.status, 503);
+    assert.equal(calls.length, 0);
   });
 
   it("maps database policy failures without returning database internals", async () => {
@@ -392,7 +394,7 @@ describe("Story Pack persistence and selected-photo eligibility", () => {
       return { body: [stored] };
     };
     const edited = slides.map((slide, i) => ({ ...slide, title: `Edited ${i + 1}`, body: `Saved body ${i + 1}` }));
-    assert.equal((await setup(respond).call(`/content/drafts/${DRAFT}`, patchDraft({ slides: edited }))).status, 200);
+    assert.equal((await setup(respond).call(`/content/drafts/${DRAFT}`, patchDraft({ slides: edited, expectedUpdatedAt: draftRow.updated_at }))).status, 200);
     const response = await setup(respond).call("/content/drafts");
     assert.equal(response.status, 200);
     const body = await response.json() as { data: { slides: unknown; sourceMediaIds: string[] }[] };
@@ -512,7 +514,7 @@ describe("Story Pack persistence and selected-photo eligibility", () => {
 
   it("saves a draft before a platform is chosen", async () => {
     const { call, calls } = setup(() => ({ body: { ...draftRow, platforms: [] } }));
-    const response = await call(`/content/drafts/${DRAFT}`, patchDraft({ platforms: [] }));
+    const response = await call(`/content/drafts/${DRAFT}`, patchDraft({ platforms: [], expectedUpdatedAt: draftRow.updated_at }));
     assert.equal(response.status, 200);
     assert.deepEqual(calls[0]?.body, { platforms: [] });
     assert.equal(((await response.json()) as { data: { canHandoff: boolean } }).data.canHandoff, false);
@@ -557,7 +559,7 @@ describe("Story Pack persistence and selected-photo eligibility", () => {
   it("rejects incomplete and oversized slide content", async () => {
     const { call } = setup(() => ({ body: {} }));
     for (const invalid of [slides.slice(0, 2), [{ ...slides[0], title: "x".repeat(61) }, ...slides.slice(1)]]) {
-      assert.equal((await call(`/content/drafts/${DRAFT}`, patchDraft({ slides: invalid }))).status, 400);
+      assert.equal((await call(`/content/drafts/${DRAFT}`, patchDraft({ slides: invalid, expectedUpdatedAt: draftRow.updated_at }))).status, 400);
     }
   });
 
@@ -639,7 +641,7 @@ describe("S9: Logical delete of Story Pack drafts", () => {
       return { status: 500, body: {} };
     });
 
-    const response = await call(`/content/drafts/${DELETED_DRAFT}`, patchDraft({ caption: "Edited repair story." }));
+    const response = await call(`/content/drafts/${DELETED_DRAFT}`, patchDraft({ caption: "Edited repair story.", expectedUpdatedAt: draftRow.updated_at }));
     const patchCall = calls.find((r) => r.path === "/rest/v1/content_drafts" && r.method === "PATCH");
     assert.equal(patchCall?.query.get("deleted_at"), "is.null", "PATCH must query with deleted_at=is.null");
     assert.equal(response.status, 404, "PATCH on logically deleted draft must return 404");
@@ -695,5 +697,44 @@ describe("S9: Logical delete of Story Pack drafts", () => {
     assert.equal(response.status, 404, "handoff on logically deleted draft must return 404");
     const body = await response.json() as { error?: { code: string } };
     assert.equal(body.error?.code, "not_found");
+  });
+});
+
+describe("Story Pack optimistic updates", () => {
+  it("writes only the displayed version and rejects stale copy without overwriting", async () => {
+    let stored = { ...draftRow };
+    const { call, calls } = setup((request) => {
+      if (request.path !== "/rest/v1/content_drafts") return { status: 500, body: {} };
+      if (request.method === "GET") return { body: stored };
+      if (request.method !== "PATCH") return { status: 500, body: {} };
+      if (request.query.get("updated_at") !== `eq.${stored.updated_at}`) return { body: null };
+      stored = { ...stored, ...(request.body as object), updated_at: "2026-10-31T01:00:00.000Z" };
+      return { body: stored };
+    });
+    const first = await call(`/content/drafts/${DRAFT}`, patchDraft({ caption: "First writer", expectedUpdatedAt: draftRow.updated_at }));
+    assert.equal(first.status, 200);
+    assert.deepEqual(calls[0]?.body, { caption: "First writer" });
+    assert.equal(calls[0]?.query.get("source"), "eq.story_pack");
+    assert.equal(calls[0]?.query.get("status"), "eq.draft");
+    assert.equal(calls[0]?.query.get("deleted_at"), "is.null");
+    const stale = await call(`/content/drafts/${DRAFT}`, patchDraft({ caption: "Stale writer", expectedUpdatedAt: draftRow.updated_at }));
+    assert.equal(stale.status, 409);
+    assert.equal((await stale.json() as { error: { code: string } }).error.code, "changed_since_read");
+    assert.equal(stored.caption, "First writer");
+  });
+
+  it("rejects unversioned edits before any database access", async () => {
+    const { call, calls } = setup(() => ({ body: draftRow }));
+    assert.equal((await call(`/content/drafts/${DRAFT}`, patchDraft({ caption: "Unversioned" }))).status, 400);
+    assert.equal(calls.length, 0);
+  });
+
+  it("keeps missing or logically deleted rows unavailable after a conditional write misses", async () => {
+    const { call, calls } = setup(() => ({ body: null }));
+    const response = await call(`/content/drafts/${DRAFT}`, patchDraft({ caption: "Must not resurrect", expectedUpdatedAt: draftRow.updated_at }));
+    assert.equal(response.status, 404);
+    assert.equal((await response.json() as { error: { code: string } }).error.code, "not_found");
+    assert.ok(calls.every((request) => request.query.get("source") === "eq.story_pack"));
+    assert.ok(calls.every((request) => request.query.get("deleted_at") === "is.null"));
   });
 });

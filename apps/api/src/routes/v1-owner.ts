@@ -8,6 +8,8 @@ import { requireOwner, type OwnerEnv } from "../http/auth.ts";
 import { rateLimit } from "../http/rate-limit.ts";
 import { errorResponse, ok, readId, readJson, readQuery } from "../http/respond.ts";
 import * as owner from "../services/owner-service.ts";
+import { metaConnectUrl, unlinkAccount } from "../services/owner-meta.ts";
+import { publishContentDraft } from "../services/owner-publish.ts";
 import type { V1Deps } from "./v1.ts";
 
 const limit = z.coerce.number().int().min(1).max(100).optional();
@@ -19,8 +21,11 @@ const offerQuery = z.object({
   limit,
 });
 const declineBody = z
-  .object({ reason: z.enum(["busy", "too_far", "not_offered", "other"]), note: z.string().trim().max(500).optional() })
+  // The app's decline button sends no reason; the sheet sends one.
+  .object({ reason: z.enum(["busy", "too_far", "not_offered", "other"]).default("other"), note: z.string().trim().max(500).optional() })
   .strict();
+// The native app asks for its own deep link back; anything else returns to the owner web app.
+const connectUrlQuery = z.object({ return: z.enum(["web", "app"]).default("web") });
 const messagesQuery = z.object({ before: isoTime.optional(), limit: z.coerce.number().int().min(1).max(200).optional() });
 const quoteBody = z
   .object({
@@ -59,6 +64,86 @@ const pushTokenBody = z
     platform: z.enum(["ios", "android", "web"]),
   })
   .strict();
+const businessName = z.string().trim().min(1).max(120);
+// An empty website clears it.
+// "Http://" is still http: the scheme is stored lowercase, as the tenants check expects.
+const website = z.union([
+  z.literal(""),
+  z
+    .string()
+    .trim()
+    .transform((typed) => typed.replace(/^https?:\/\//i, (scheme) => scheme.toLowerCase()))
+    .pipe(z.string().url().max(200).regex(/^https?:\/\//, "must start with http(s)://")),
+]);
+// The owner types "Water Heaters" or "Plomería"; the business stores its key, water_heaters or plomeria.
+const category = z
+  .string()
+  .transform(categoryKey)
+  .pipe(z.string().regex(/^[a-z_]{2,32}$/, "must be 2-32 letters"));
+const newBusinessBody = z
+  .object({ name: businessName, category, website: website.optional(), ownerName: z.string().trim().min(1).max(80).optional() })
+  .strict();
+const businessBody = z
+  .object({
+    name: businessName.optional(),
+    shortName: z.string().trim().min(1).max(28).optional(),
+    website: website.optional(),
+    takingRequests: z.boolean().optional(),
+    nightJobs: z.boolean().optional(),
+  })
+  .strict()
+  .refine((changes) => Object.keys(changes).length > 0, "nothing to change");
+// Prices are whole currency units stored in an integer column; this keeps them far below its limit.
+const MAX_PRICE = 1_000_000;
+const pricesBody = z
+  .object({
+    prices: z
+      .array(
+        z
+          .object({
+            id: z.string().min(1).max(64).optional(),
+            label: z.string().trim().min(1).max(80),
+            amount: z.number().int().positive().max(MAX_PRICE),
+          })
+          .strict(),
+      )
+      .max(50)
+      .refine(hasDistinctIds, "each price id appears once"),
+  })
+  .strict();
+const feesBody = z
+  .object({
+    fees: z
+      .array(
+        z
+          .object({
+            id: z.string().min(1).max(64).optional(),
+            label: z.string().trim().min(1).max(80),
+            amount: z.number().int().positive().max(MAX_PRICE),
+            atNight: z.boolean(),
+          })
+          .strict(),
+      )
+      .max(20)
+      .refine(hasDistinctIds, "each fee id appears once"),
+  })
+  .strict();
+const clockTime = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "must be HH:MM");
+const hoursBody = z
+  .object({
+    hours: z
+      .array(
+        z
+          .object({ weekday: z.number().int().min(0).max(6), opens: clockTime, closes: clockTime })
+          .strict()
+          .refine((day) => day.opens !== day.closes, "opens and closes must differ"),
+      )
+      .max(21),
+  })
+  .strict();
+const areaBody = z
+  .object({ lat: z.number().min(-90).max(90), lng: z.number().min(-180).max(180), radiusKm: z.number().positive().max(200) })
+  .strict();
 const pushTokenDeleteBody = z.object({ expoToken: pushTokenBody.shape.expoToken }).strict();
 
 export function ownerRoutes(deps: V1Deps): Hono<OwnerEnv> {
@@ -71,10 +156,38 @@ export function ownerRoutes(deps: V1Deps): Hono<OwnerEnv> {
 
   app.get("/me", async (c) => ok(c, await owner.getMe(c.get("session"))));
 
+  app.get("/business", async (c) => ok(c, await owner.getBusiness(c.get("session"))));
+  // Onboarding's business step: creates the caller's business once, then updates it.
+  app.post("/business", async (c) => {
+    const body = await readJson(c, newBusinessBody);
+    return ok(c, await owner.createBusiness(c.get("session"), body));
+  });
+  app.patch("/business", async (c) => {
+    const body = await readJson(c, businessBody);
+    return ok(c, await owner.updateBusiness(c.get("session"), body));
+  });
+  app.put("/business/prices", async (c) => {
+    const body = await readJson(c, pricesBody);
+    return ok(c, await owner.savePrices(c.get("session"), body.prices));
+  });
+  app.put("/business/fees", async (c) => {
+    const body = await readJson(c, feesBody);
+    return ok(c, await owner.saveFees(c.get("session"), body.fees));
+  });
+  app.put("/business/hours", async (c) => {
+    const body = await readJson(c, hoursBody);
+    return ok(c, await owner.saveHours(c.get("session"), body.hours));
+  });
+  app.put("/business/area", async (c) => {
+    const body = await readJson(c, areaBody);
+    return ok(c, await owner.saveArea(c.get("session"), body));
+  });
+
   app.get("/offers", async (c) => {
     const query = readQuery(c, offerQuery);
     return ok(c, await owner.listOffers(c.get("session"), query.status, query.limit));
   });
+  app.get("/offers/:id", async (c) => ok(c, await owner.getOffer(c.get("session"), readId(c))));
   app.post("/offers/:id/accept", async (c) => ok(c, await owner.acceptOffer(c.get("session"), readId(c))));
   app.post("/offers/:id/decline", async (c) => {
     const id = readId(c);
@@ -141,8 +254,19 @@ export function ownerRoutes(deps: V1Deps): Hono<OwnerEnv> {
     return ok(c, await owner.reviewContentDraft(c.get("session"), id, body));
   });
 
+  // Posts an approved Story Pack to its linked Page and Instagram account (the owner app calls it after review).
+  app.post("/content/drafts/:id/publish", async (c) =>
+    ok(c, await publishContentDraft(c.get("session"), readId(c), deps)));
+
   app.post("/content/drafts/:id/handoff", async (c) =>
     ok(c, await owner.handoffContentDraft(c.get("session"), readId(c))));
+
+  app.get("/linked-accounts", async (c) => ok(c, await owner.listLinkedAccounts(c.get("session"))));
+  app.delete("/linked-accounts/:id", async (c) => ok(c, await unlinkAccount(c.get("session"), readId(c))));
+  app.get("/meta/connect-url", async (c) => {
+    const query = readQuery(c, connectUrlQuery);
+    return ok(c, await metaConnectUrl(c.get("session"), deps, query.return));
+  });
 
   app.post("/test-zukki", async (c) => {
     const body = await readJson(c, testZukkiBody);
@@ -159,4 +283,20 @@ export function ownerRoutes(deps: V1Deps): Hono<OwnerEnv> {
   });
 
   return app;
+}
+
+function hasDistinctIds(rows: { id?: string | undefined }[]): boolean {
+  const ids = rows.flatMap((row) => (row.id ? [row.id] : []));
+  return new Set(ids).size === ids.length;
+}
+
+// Accents dropped, every run of other characters one underscore, no underscore at either end.
+function categoryKey(typed: string): string {
+  return typed
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .toLowerCase()
+    .replace(/[^a-z]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 32);
 }
